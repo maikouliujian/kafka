@@ -21,6 +21,7 @@ public class PartitionInfo {
     private final int partition;
     private final Node leader;
     private final Node[] replicas;
+    //todo isr list
     private final Node[] inSyncReplicas;
 
     public PartitionInfo(String topic, int partition, Node leader, Node[] replicas, Node[] inSyncReplicas) {

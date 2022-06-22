@@ -52,6 +52,7 @@ public final class Metadata {
 
     private final long refreshBackoffMs;
     private final long metadataExpireMs;
+    //todo 每更新一次元数据，都需要更新下版本号
     private int version;
     private long lastRefreshMs;
     private long lastSuccessfulRefreshMs;
@@ -151,6 +152,10 @@ public final class Metadata {
         long remainingWaitMs = maxWaitMs;
         while (this.version <= lastVersion) {
             if (remainingWaitMs != 0)
+                //todo 主线程等待
+                //todo 唤醒条件：
+                //todo 1）获取到元数据
+                //todo 2）获取元数据超时
                 wait(remainingWaitMs);
             long elapsed = System.currentTimeMillis() - begin;
             if (elapsed >= maxWaitMs)
@@ -226,6 +231,7 @@ public final class Metadata {
             this.needUpdate = false;
             this.cluster = getClusterForCurrentTopics(cluster);
         } else {
+            //todo 赋值
             this.cluster = cluster;
         }
 
@@ -236,7 +242,7 @@ public final class Metadata {
                 log.info("Cluster ID: {}", cluster.clusterResource().clusterId());
             clusterResourceListeners.onUpdate(cluster.clusterResource());
         }
-
+        //todo 唤醒等待中的主线程
         notifyAll();
         log.debug("Updated cluster metadata version {} to {}", this.version, this.cluster);
     }

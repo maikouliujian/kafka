@@ -125,6 +125,7 @@ public class Sender implements Runnable {
 
     /**
      * The main run loop for the sender thread
+     * //todo 发送的核心逻辑
      */
     public void run() {
         log.debug("Starting Kafka producer I/O thread.");
@@ -171,8 +172,10 @@ public class Sender implements Runnable {
      *            The current POSIX time in milliseconds
      */
     void run(long now) {
+        //todo 获取元数据，第一次获取不到
         Cluster cluster = metadata.fetch();
         // get the list of partitions with data ready to send
+        //todo 判断哪些分区有消息可以发送，因为没有元数据，所以不会执行
         RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
 
         // if there are any partitions whose leaders are not known yet, force metadata update
@@ -190,6 +193,7 @@ public class Sender implements Runnable {
         long notReadyTimeout = Long.MAX_VALUE;
         while (iter.hasNext()) {
             Node node = iter.next();
+            //todo 检查与要发送的主机的网络是否已经建立好了
             if (!this.client.ready(node, now)) {
                 iter.remove();
                 notReadyTimeout = Math.min(notReadyTimeout, this.client.connectionDelay(node, now));
@@ -233,6 +237,7 @@ public class Sender implements Runnable {
         // otherwise if some partition already has some data accumulated but not ready yet,
         // the select time will be the time difference between now and its linger expiry time;
         // otherwise the select time will be the time difference between now and the metadata expiry time;
+        //todo 更新元数据
         this.client.poll(pollTimeout, now);
     }
 

@@ -30,13 +30,17 @@ import java.util.Set;
 public final class Cluster {
 
     private final boolean isBootstrapConfigured;
-    private final List<Node> nodes;
+    //todo kafka集群的所有节点
+    private final List<Node> nodes;//brokers
     private final Set<String> unauthorizedTopics;
     private final Set<String> internalTopics;
+    //todo 每个分区对应的分区信息，包好副本的
     private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
     private final Map<String, List<PartitionInfo>> partitionsByTopic;
     private final Map<String, List<PartitionInfo>> availablePartitionsByTopic;
+    //todo 节点id和节点上分区信息对应关系
     private final Map<Integer, List<PartitionInfo>> partitionsByNode;
+    //todo 节点id和node对应关系,broker用id编号，如0，1，2，3
     private final Map<Integer, Node> nodesById;
     private final ClusterResource clusterResource;
 

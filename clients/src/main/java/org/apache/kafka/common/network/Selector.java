@@ -212,6 +212,7 @@ public class Selector implements Selectable {
      */
     @Override
     public void wakeup() {
+        //todo 立即将当前线程唤起
         this.nioSelector.wakeup();
     }
 
