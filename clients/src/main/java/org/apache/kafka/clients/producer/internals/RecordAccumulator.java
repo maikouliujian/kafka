@@ -189,6 +189,7 @@ public final class RecordAccumulator {
 
                 RecordAppendResult appendResult = tryAppend(timestamp, key, value, callback, dq);
                 if (appendResult != null) {
+                    //todo 回收内存
                     // Somebody else found us a batch, return the one we waited for! Hopefully this doesn't happen often...
                     free.deallocate(buffer);
                     return appendResult;
@@ -246,6 +247,7 @@ public final class RecordAccumulator {
                         RecordBatch batch = batchIterator.next();
                         boolean isFull = batch != lastBatch || batch.records.isFull();
                         // check if the batch is expired
+                        //todo //判断一下是否超时
                         if (batch.maybeExpire(requestTimeout, retryBackoffMs, now, this.lingerMs, isFull)) {
                             expiredBatches.add(batch);
                             count++;
@@ -304,7 +306,8 @@ public final class RecordAccumulator {
         Set<Node> readyNodes = new HashSet<>();
         long nextReadyCheckDelayMs = Long.MAX_VALUE;
         Set<String> unknownLeaderTopics = new HashSet<>();
-
+        //todo 【exhausted：筋疲力尽的; 疲惫不堪的; 用完的; 耗尽的; 枯竭的】
+        //todo exhausted为true，说明内存不够
         boolean exhausted = this.free.queued() > 0;
         for (Map.Entry<TopicPartition, Deque<RecordBatch>> entry : this.batches.entrySet()) {
             TopicPartition part = entry.getKey();
@@ -319,12 +322,70 @@ public final class RecordAccumulator {
                 } else if (!readyNodes.contains(leader) && !muted.contains(part)) {
                     RecordBatch batch = deque.peekFirst();
                     if (batch != null) {
+                        /**
+                         *
+                         * 解析来就判断这个批次是否符合发送出去的条件
+                         *
+                         */
+
+                        /**
+                         * batch.attempts:重试的次数
+                         * batch.lastAttemptMs：上一次重试的时间
+                         * retryBackoffMs：重试的时间间隔
+                         *
+                         * backingOff：重新发送数据的时间到了
+                         *
+                         * 但是，如果我们用的是场景驱动的方式，那很明显我们是第一次发送消息
+                         * 肯定还没有到重试到地步。
+                         */
                         boolean backingOff = batch.attempts > 0 && batch.lastAttemptMs + retryBackoffMs > nowMs;
+                        /**
+                         * nowMs: 当前时间
+                         * batch.lastAttemptMs： 上一次重试的时间。
+                         * waitedTimeMs=这个批次已经等了多久了。
+                         */
                         long waitedTimeMs = nowMs - batch.lastAttemptMs;
+                        /**
+                         * 但是我们用场景驱动的方式去分析，因为我们第一次发送数据。
+                         * 所以之前也没有消息发送出去过，也就没有重试这一说。
+                         *
+                         * timeToWaitMs =lingerMs
+                         * lingerMs
+                         * 这个值默认是0，如果这个值默认是0 的话，那代表着来一条消息
+                         * 就发送一条消息，那很明显是不合适的。
+                         * 所以我们发送数据的时候，大家一定要记得去配置这个参数。
+                         * 假设我们配置的是100ms
+                         * timeToWaitMs = linerMs = 100ms
+                         * 消息最多存多久就必须要发送出去了。
+                         */
                         long timeToWaitMs = backingOff ? retryBackoffMs : lingerMs;
+                        /**
+                         * timeToWaitMs: 最多能等待多久
+                         * waitedTimeMs： 已经等待了多久
+                         * timeLeftMs： 还要在等待多久
+                         */
                         long timeLeftMs = Math.max(timeToWaitMs - waitedTimeMs, 0);
+                        /**
+                         *如果队列大于一，说明这个队列里面至少有一个批次肯定是写满了
+                         * 如果批次写满了肯定是可以发送数据了。
+                         *当然也有可能就是这个队列里面只有一个批次，然后刚好这个批次
+                         * 写满了，也可以发送数据。
+                         *
+                         * full：是否有写满的批次
+                         */
                         boolean full = deque.size() > 1 || batch.records.isFull();
+                        /**
+                         * waitedTimeMs:已经等待了多久
+                         * timeToWaitMs：最多需要等待多久
+                         * expired： 时间到了，到了发送消息的时候了
+                         * 如果expired=true 代表就是时间到了，到了发送消息的时候了
+                         */
                         boolean expired = waitedTimeMs >= timeToWaitMs;
+                        /**
+                         * 1）full: 如果一个批次写满了（无论时间有没有到）
+                         * 2）expired：时间到了（批次没写满也得发送）
+                         * 3）exhausted：内存不够（消息发送出去以后，就会释放内存）
+                         */
                         boolean sendable = full || expired || exhausted || closed || flushInProgress();
                         if (sendable && !backingOff) {
                             readyNodes.add(leader);

@@ -175,9 +175,23 @@ public class Sender implements Runnable {
         //todo 获取元数据，第一次获取不到
         Cluster cluster = metadata.fetch();
         // get the list of partitions with data ready to send
-        //todo 判断哪些分区有消息可以发送，因为没有元数据，所以不会执行
+        //todo 判断哪些分区有消息可以发送，【第一次因为没有元数据，所以不会执行】
+        //todo 包含数据被发出去的条件
+        /**
+         * 步骤二：
+         *      首先是判断哪些partition有消息可以发送：
+         *        我们看一下一个批次可以发送出去的条件
+         *
+         *      获取到这个partition的leader partition对应的broker主机（根据元数据信息来就可以了）
+         *
+         *      哪些broker上面需要我们去发送消息？
+         */
         RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
 
+        /**
+         * 步骤三：
+         *      标识还没有拉取到元数据的topic
+         */
         // if there are any partitions whose leaders are not known yet, force metadata update
         if (!result.unknownLeaderTopics.isEmpty()) {
             // The set of topics with unknown leader contains topics with leader election pending as well as
@@ -193,13 +207,41 @@ public class Sender implements Runnable {
         long notReadyTimeout = Long.MAX_VALUE;
         while (iter.hasNext()) {
             Node node = iter.next();
-            //todo 检查与要发送的主机的网络是否已经建立好了
+            /**
+             * 步骤四：检查与要发送数据的主机的网络是否已经建立好。
+             */
             if (!this.client.ready(node, now)) {
                 iter.remove();
                 notReadyTimeout = Math.min(notReadyTimeout, this.client.connectionDelay(node, now));
             }
         }
-
+        /**
+         * 步骤五：
+         *
+         * 我们有可能要发送的partition有很多个，
+         * 很有可能有一些partition的leader partition是在同一台服务器上面。
+         *  假设我们集群只有3台服务器 0  1 2
+         *  主题：p0 p1 p2 p3
+         *
+         * p0:leader -> 0
+         * p1:leader -> 0
+         * p2:leader -> 1
+         * p3:leader -> 2
+         *
+         * 当我们的分区的个数大于集群的节点的个数的时候，一定会有多个leader partition在同一台服务器上面。
+         *
+         * 按照broker进行分组，同一个broker的partition为同一组
+         * 0:{p0,p1}  -> 批次
+         * 1:{p2}
+         * 2:{p3}
+         *
+         * 一个批次就一个请求  -> broker
+         *
+         * 减少网络传输到次数
+         *
+         * drain ： 消耗
+         *
+         */
         // create produce requests
         Map<Integer, List<RecordBatch>> batches = this.accumulator.drain(cluster,
                                                                          result.readyNodes,
@@ -212,6 +254,11 @@ public class Sender implements Runnable {
                     this.accumulator.mutePartition(batch.topicPartition);
             }
         }
+        /**
+         * 步骤六：
+         *  对超时的批次是如何处理的？
+         *
+         */
 
         List<RecordBatch> expiredBatches = this.accumulator.abortExpiredBatches(this.requestTimeout, now);
         // update sensors
@@ -219,6 +266,22 @@ public class Sender implements Runnable {
             this.sensors.recordErrors(expiredBatch.topicPartition.topic(), expiredBatch.recordCount);
 
         sensors.updateProduceRequestMetrics(batches);
+
+        /**
+         * 步骤七：
+         *      创建发送消息的请求
+         *
+         *
+         * 创建请求
+         * 我们往partition上面去发送消息的时候，有一些partition他们在同一台服务器上面
+         * ，如果我们一分区一个分区的发送我们网络请求，那网络请求就会有一些频繁
+         * 我们要知道，我们集群里面网络资源是非常珍贵的。
+         * 会把发往同个broker上面partition的数据 组合成为一个请求。
+         * 然后统一一次发送过去，这样子就减少了网络请求。
+         */
+
+        //如果网络连接没有建立好 batches其实是为空。
+        //也就说其实这段代码也是不会执行。
         List<ClientRequest> requests = createProduceRequests(batches, now);
         // If we have any nodes that are ready to send + have sendable data, poll with 0 timeout so this can immediately
         // loop and try sending more data. Otherwise, the timeout is determined by nodes that have partitions with data
@@ -231,13 +294,22 @@ public class Sender implements Runnable {
             pollTimeout = 0;
         }
         for (ClientRequest request : requests)
+            //todo 绑定op_write事件
             client.send(request, now);
 
         // if some partitions are already ready to be sent, the select time would be 0;
         // otherwise if some partition already has some data accumulated but not ready yet,
         // the select time will be the time difference between now and its linger expiry time;
         // otherwise the select time will be the time difference between now and the metadata expiry time;
-        //todo 更新元数据
+        //todo 更新元数据,并发送数据
+        /**
+         * 步骤八：
+         * 真正执行网络操作的都是这个NetWordClient这个组件
+         * 包括：发送请求，接受响应（处理响应）
+         *
+         * 拉取元数据信息，靠的就是这段代码
+         */
+        //todo 我们猜这儿可能就是去建立连接。
         this.client.poll(pollTimeout, now);
     }
 
@@ -276,6 +348,7 @@ public class Sender implements Runnable {
                       response.request().request().destination(),
                       correlationId);
             // if we have a response, parse it
+            //所以我们正常情况下，走的都是这个分支
             if (response.hasResponse()) {
                 ProduceResponse produceResponse = new ProduceResponse(response.responseBody());
                 for (Map.Entry<TopicPartition, ProduceResponse.PartitionResponse> entry : produceResponse.responses().entrySet()) {
@@ -307,6 +380,7 @@ public class Sender implements Runnable {
      * @param now The current POSIX time stamp in milliseconds
      */
     private void completeBatch(RecordBatch batch, Errors error, long baseOffset, long timestamp, long correlationId, long now) {
+        //todo 出现异常可以重试
         if (error != Errors.NONE && canRetry(batch, error)) {
             // retry
             log.warn("Got error produce response with correlation id {} on topic-partition {}, retrying ({} attempts left). Error: {}",
@@ -323,7 +397,13 @@ public class Sender implements Runnable {
             else
                 exception = error.exception();
             // tell the user the result of their request
+            //TODO 核心代码 把异常的信息也给带过去了
+            //我们刚刚看的就是这儿的代码
+            //里面调用了用户传进来的回调函数
+            //回调函数调用了以后
+            //说明我们的一个完整的消息的发送流程就结束了。
             batch.done(baseOffset, timestamp, exception);
+            //todo 释放资源
             this.accumulator.deallocate(batch);
             if (error != Errors.NONE)
                 this.sensors.recordErrors(batch.topicPartition.topic(), batch.recordCount);
@@ -374,6 +454,7 @@ public class Sender implements Runnable {
                                            request.toStruct());
         RequestCompletionHandler callback = new RequestCompletionHandler() {
             public void onComplete(ClientResponse response) {
+                //todo 请求的响应
                 handleProduceResponse(response, recordsByPartition, time.milliseconds());
             }
         };

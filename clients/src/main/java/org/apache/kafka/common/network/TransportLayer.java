@@ -57,6 +57,8 @@ public interface TransportLayer extends ScatteringByteChannel, GatheringByteChan
 
     /**
      * returns underlying socketChannel
+     *
+     * 这个核心的组件，就是javaNIO里面的SocketChannel
      */
     SocketChannel socketChannel();
 

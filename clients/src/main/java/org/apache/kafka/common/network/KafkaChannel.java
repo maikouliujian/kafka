@@ -28,8 +28,11 @@ import java.security.Principal;
 
 import org.apache.kafka.common.utils.Utils;
 
+//todo 我们认为这个KafkaChannel就是对javaNIO里面的SocketChannel
+//todo 一个broker就对应一个KafkaChannel
 public class KafkaChannel {
     private final String id;
+    //todo 这个里面应该会有SocketChannel
     private final TransportLayer transportLayer;
     private final Authenticator authenticator;
     private final int maxReceiveSize;
@@ -131,8 +134,9 @@ public class KafkaChannel {
         if (receive == null) {
             receive = new NetworkReceive(maxReceiveSize, id);
         }
-
+        //一直在读取数据。
         receive(receive);
+        //是否读完一个完整的响应消息
         if (receive.complete()) {
             receive.payload().rewind();
             result = receive;
@@ -143,6 +147,7 @@ public class KafkaChannel {
 
     public Send write() throws IOException {
         Send result = null;
+        //send方法就是发送网络请求的方法
         if (send != null && send(send)) {
             result = send;
             send = null;

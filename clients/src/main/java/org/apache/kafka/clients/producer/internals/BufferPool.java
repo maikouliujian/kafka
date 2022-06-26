@@ -46,6 +46,7 @@ public final class BufferPool {
     private final long totalMemory;
     private final int poolableSize;
     private final ReentrantLock lock;
+    //todo 内存池
     private final Deque<ByteBuffer> free;
     private final Deque<Condition> waiters;
     private long availableMemory;
@@ -105,6 +106,7 @@ public final class BufferPool {
             // now check if the request is immediately satisfiable with the
             // memory on hand or if we need to block
             int freeListSize = this.free.size() * this.poolableSize;
+            //todo 内存够用
             if (this.availableMemory + freeListSize >= size) {
                 // we have enough unallocated or pooled memory to immediately
                 // satisfy the request
@@ -113,6 +115,7 @@ public final class BufferPool {
                 lock.unlock();
                 return ByteBuffer.allocate(size);
             } else {
+                //todo 内存不够时
                 // we are out of memory and will have to block
                 int accumulated = 0;
                 ByteBuffer buffer = null;
@@ -126,6 +129,7 @@ public final class BufferPool {
                     long timeNs;
                     boolean waitingTimeElapsed;
                     try {
+                        //todo 阻塞等待【超时返回false，正常唤醒返回true】
                         waitingTimeElapsed = !moreMemory.await(remainingTimeToBlockNs, TimeUnit.NANOSECONDS);
                     } catch (InterruptedException e) {
                         this.waiters.remove(moreMemory);
@@ -135,7 +139,7 @@ public final class BufferPool {
                         timeNs = Math.max(0L, endWaitNs - startWaitNs);
                         this.waitTime.record(timeNs, time.milliseconds());
                     }
-
+                    //todo 超时了
                     if (waitingTimeElapsed) {
                         this.waiters.remove(moreMemory);
                         throw new TimeoutException("Failed to allocate memory within the configured max blocking time " + maxTimeToBlockMs + " ms.");
@@ -205,13 +209,22 @@ public final class BufferPool {
         lock.lock();
         try {
             if (size == this.poolableSize && size == buffer.capacity()) {
+                //内存里面的东西清空
                 buffer.clear();
+                //把内存放入到内存池
                 this.free.add(buffer);
             } else {
+                //但是如果 我们释放的内存的大小
+                //不是一个批次的大小，那就把归为可用内存
+                //等着垃圾回收即可
                 this.availableMemory += size;
             }
             Condition moreMem = this.waiters.peekFirst();
             if (moreMem != null)
+                //释放了内存（或者是还了内存以后）
+                //都会唤醒等待内存的线程。
+
+                //接下来是不是还是要唤醒正在等待分配内存的线程。
                 moreMem.signal();
         } finally {
             lock.unlock();

@@ -81,14 +81,23 @@ public class Selector implements Selectable {
     private static final Logger log = LoggerFactory.getLogger(Selector.class);
 
     private final java.nio.channels.Selector nioSelector;
+    //broker 和 KafkaChannel(SocketChannel)的映射
+    //这儿的kafkaChannel大家暂时可以理解为就是SocketChannel
+    //代表的就是一个网络连接。
     private final Map<String, KafkaChannel> channels;
+    //已经完成发送的请求
     private final List<Send> completedSends;
+    //已经接收到的，并且处理完了的响应。
     private final List<NetworkReceive> completedReceives;
+    //已经接收到了，但是还没来得及处理的响应。
+    //一个连接，对应一个响应队列
     private final Map<KafkaChannel, Deque<NetworkReceive>> stagedReceives;
     private final Set<SelectionKey> immediatelyConnectedKeys;
+    //没有建立连接的主机
     private final List<String> disconnected;
+    //完成建立连接的主机
     private final List<String> connected;
-    private final List<String> failedSends;
+    //建立连接失败的主机。
     private final Time time;
     private final SelectorMetrics sensors;
     private final String metricGrpPrefix;
@@ -162,7 +171,7 @@ public class Selector implements Selectable {
     public void connect(String id, InetSocketAddress address, int sendBufferSize, int receiveBufferSize) throws IOException {
         if (this.channels.containsKey(id))
             throw new IllegalStateException("There is already a connection for id " + id);
-
+        //todo nio代码逻辑
         SocketChannel socketChannel = SocketChannel.open();
         socketChannel.configureBlocking(false);
         Socket socket = socketChannel.socket();
@@ -171,6 +180,13 @@ public class Selector implements Selectable {
             socket.setSendBufferSize(sendBufferSize);
         if (receiveBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
             socket.setReceiveBufferSize(receiveBufferSize);
+        //todo //这个的默认值是false，代表要开启Nagle的算法
+        //        //它会把网络中的一些小的数据包收集起来，组合成一个大的数据包
+        //        //然后再发送出去。因为它认为如果网络中有大量的小的数据包在传输
+        //        //其实是会影响网络拥塞。
+        //
+        //        //kafka一定不能把这儿设置为false，因为我们有些时候可能有些数据包就是比较
+        //        //小，他这儿就不帮我们发送了，显然是不合理的。
         socket.setTcpNoDelay(true);
         boolean connected;
         try {
@@ -184,6 +200,10 @@ public class Selector implements Selectable {
         }
         SelectionKey key = socketChannel.register(nioSelector, SelectionKey.OP_CONNECT);
         KafkaChannel channel = channelBuilder.buildChannel(id, key, maxReceiveSize);
+        //todo  //把key和KafkaChannel关联起来
+        //        //后面使用起来会比较方便
+        //        //我们可以根据key就找到KafkaChannel
+        //        //也可以根据KafkaChannel找到key
         key.attach(channel);
         this.channels.put(id, channel);
 
@@ -284,15 +304,17 @@ public class Selector implements Selectable {
 
         /* check ready keys */
         long startSelect = time.nanoseconds();
+        //todo 从Selector上找到有多少个key注册了
         int readyKeys = select(timeout);
         long endSelect = time.nanoseconds();
         this.sensors.selectTime.record(endSelect - startSelect, time.milliseconds());
 
         if (readyKeys > 0 || !immediatelyConnectedKeys.isEmpty()) {
+            //todo 立马就要对这个Selector上面的key要进行处理。
             pollSelectionKeys(this.nioSelector.selectedKeys(), false, endSelect);
             pollSelectionKeys(immediatelyConnectedKeys, true, endSelect);
         }
-
+        //TODO 对stagedReceives里面的数据要进行处理
         addToCompletedReceives();
 
         long endIo = time.nanoseconds();
@@ -310,6 +332,7 @@ public class Selector implements Selectable {
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
             iterator.remove();
+            //根据key找到对应的KafkaChannel
             KafkaChannel channel = channel(key);
 
             // register all per-connection metrics at once
@@ -320,8 +343,21 @@ public class Selector implements Selectable {
             try {
 
                 /* complete any connections that have finished their handshake (either normally or immediately) */
+                /* complete any connections that have finished their handshake (either normally or immediately) */
+                /**
+                 *
+                 * 我们代码第一次进来应该要走的是这儿分支，因为我们前面注册的是
+                 * SelectionKey key = socketChannel.register(nioSelector,
+                 * SelectionKey.OP_CONNECT);
+                 *
+                 */
                 if (isImmediatelyConnected || key.isConnectable()) {
+                    //TODO 核心的代码来了
+                    //去最后完成网络的连接
+                    //如果我们之前初始化的时候，没有完成网络连接的话，这儿一定会帮你
+                    //完成网络的连接。
                     if (channel.finishConnect()) {
+                        //网络连接已经完成了以后，就把这个channel存储到
                         this.connected.add(channel.id());
                         this.sensors.connectionCreated.record();
                         SocketChannel socketChannel = (SocketChannel) key.channel();
@@ -338,6 +374,12 @@ public class Selector implements Selectable {
                 if (channel.isConnected() && !channel.ready())
                     channel.prepare();
 
+                //接受服务端发送回来的响应（请求）
+                //networkReceive 代表的就是一个服务端发送
+                //回来的响应
+
+                //里面不断的读取数据，读取数据的代码我们之前就已经分析过
+                //里面还涉及到粘包和拆包的一些问题。
                 /* if channel is ready read from any connections that have readable data */
                 if (channel.ready() && key.isReadable() && !hasStagedReceive(channel)) {
                     NetworkReceive networkReceive;
@@ -346,6 +388,7 @@ public class Selector implements Selectable {
                 }
 
                 /* if channel is ready write to any sockets that have space in their buffer and for which we have data */
+                //todo 将数据写出去【 key.isWritable() 】
                 if (channel.ready() && key.isWritable()) {
                     Send send = channel.write();
                     if (send != null) {

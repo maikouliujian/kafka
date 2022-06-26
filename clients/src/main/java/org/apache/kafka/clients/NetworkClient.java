@@ -156,6 +156,8 @@ public class NetworkClient implements KafkaClient {
 
         if (connectionStates.canConnect(node.idString(), now))
             // if we are interested in sending to a node and we don't have a connection to it, initiate one
+            //todo 初始化连接
+            //绑定了 连接到事件而已
             initiateConnect(node, now);
 
         return false;
@@ -212,6 +214,7 @@ public class NetworkClient implements KafkaClient {
     public boolean isReady(Node node, long now) {
         // if we need to update our metadata now declare all requests unready to make metadata requests first
         // priority
+        //todo 【!metadataUpdater.isUpdateDue(now)】我们要发送写数据请求的时候，不能是正在更新元数据的时候。
         return !metadataUpdater.isUpdateDue(now) && canSendRequest(node.idString());
     }
 
@@ -221,6 +224,21 @@ public class NetworkClient implements KafkaClient {
      * @param node The node
      */
     private boolean canSendRequest(String node) {
+        /**
+         * connectionStates.isConnected(node):
+         *  生产者：多个连接，缓存多个连接（跟我们的broker的节点数是一样的）
+         *     判断缓存里面是否已经把这个连接给建立好了。
+         * selector.isChannelReady(node)：
+         *      java NIO：selector
+         *      selector -> 绑定了多个KafkaChannel(java socketChannel)
+         *      一个kafkaChannel就代表一个连接。
+         *
+         *  nFlightRequests.canSendMore(node)：
+         *  每个往broker主机上面发送消息的连接，最多能容忍5个请求，发送出去了
+         *  但是还没有接受到响应。
+         *  发送数据的顺序。
+         *  1,2,3,4,5
+         */
         return connectionStates.isConnected(node) && selector.isChannelReady(node) && inFlightRequests.canSendMore(node);
     }
 
@@ -255,9 +273,13 @@ public class NetworkClient implements KafkaClient {
      */
     @Override
     public List<ClientResponse> poll(long timeout, long now) {
-        //todo 获取元数据的逻辑
+        //todo 步骤一、获取元数据的逻辑
         long metadataTimeout = metadataUpdater.maybeUpdate(now);
         try {
+            //步骤二： 发送请求，进行复杂的网络操作
+            //但是我们目前还没有学习到kafka的网络
+            //所以这儿大家就只需要知道这儿会发送网络请求。
+            //TODO 执行网络IO的操作。  NIO
             this.selector.poll(Utils.min(timeout, metadataTimeout, requestTimeoutMs));
         } catch (IOException e) {
             log.error("Unexpected error during I/O", e);
@@ -277,6 +299,11 @@ public class NetworkClient implements KafkaClient {
         for (ClientResponse response : responses) {
             if (response.request().hasCallback()) {
                 try {
+                    //调用的响应的里面的我们之前发送出去的请求的回调函数
+                    //看到了这儿，我们回头再去看一下
+                    //我们当时发送请求的时候，是如何封装这个请求。
+                    //不过虽然目前我们还没看到，但是我们可以大胆猜一下。
+                    //当时封装网络请求的时候，肯定是给他绑定了一个回调函数。
                     response.request().callback().onComplete(response);
                 } catch (Exception e) {
                     log.error("Uncaught error in request completion:", e);
@@ -446,11 +473,21 @@ public class NetworkClient implements KafkaClient {
      */
     private void handleCompletedReceives(List<ClientResponse> responses, long now) {
         for (NetworkReceive receive : this.selector.completedReceives()) {
+            //todo 获取broker id
             String source = receive.source();
+            /**
+             * kafka 有这样的一个机制：每个连接可以容忍5个发送出去了，但是还没接收到响应的请求。
+             */
+            //从数据结构里面移除已经接收到响应的请求。
+            //把之前存入进去的请求也获取到了
             ClientRequest req = inFlightRequests.completeNext(source);
+            //解析服务端发送回来的请求（里面有响应的结果数据）
             Struct body = parseResponse(receive.payload(), req.request().header());
-            //todo
+            //TODO 如果是关于元数据信息的响应
             if (!metadataUpdater.maybeHandleCompletedReceive(req, now, body))
+                //解析完了以后就把封装成一个一个的cilentResponse
+                //body 存储的是响应的内容
+                //req 发送出去的那个请求信息
                 responses.add(new ClientResponse(req, now, false, body));
         }
     }
@@ -498,6 +535,7 @@ public class NetworkClient implements KafkaClient {
         try {
             log.debug("Initiating connection to node {} at {}:{}.", node.id(), node.host(), node.port());
             this.connectionStates.connecting(nodeConnectionId, now);
+            //TODO 尝试建立连接
             selector.connect(nodeConnectionId,
                              new InetSocketAddress(node.host(), node.port()),
                              this.socketSendBuffer,
