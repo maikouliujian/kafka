@@ -215,7 +215,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         this.logIdent = "[Kafka Server " + config.brokerId + "], "
 
         metadataCache = new MetadataCache(config.brokerId)
-        //todo //NIO的服务端
+        //todo NIO的服务端
         socketServer = new SocketServer(config, metrics, kafkaMetricsTime)
         socketServer.startup()
 
@@ -226,7 +226,12 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         replicaManager.startup()
 
         /* start kafka controller */
+        //TODO 尝试启动controller,用来做集群管理
         kafkaController = new KafkaController(config, zkUtils, brokerState, kafkaMetricsTime, metrics, threadNamePrefix)
+        //猜测一下，这儿代码会怎么写
+        // broker 0 ,broker 1,broker 2
+        //启动完了以后肯定是要从里面选举出来一个controller节点
+        //作为主节点，用来管理整个Kafka集群。
         kafkaController.startup()
 
         adminManager = new AdminManager(config, metrics, metadataCache, zkUtils)
@@ -267,6 +272,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
           else
             (protocol, endpoint)
         }
+        //TODO 这儿就是每个broker完成注册的代码
         kafkaHealthcheck = new KafkaHealthcheck(config.brokerId, listeners, zkUtils, config.rack,
           config.interBrokerProtocolVersion)
         kafkaHealthcheck.startup()
@@ -326,6 +332,10 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
       zkClientForChrootCreation.zkClient.close()
     }
 
+    //初始化好了一个ZK的工具类，用来操作ZK集群的。
+    //如果有同学对ZK不了解，应该先去看一些博客，搭建一个ZK的集群
+    //感受一下ZK的特点，不然咱们讲这个集群管理的时候
+    //有些代码你就会感到莫名其妙。
     val zkUtils = ZkUtils(config.zkConnect,
                           config.zkSessionTimeoutMs,
                           config.zkConnectionTimeoutMs,

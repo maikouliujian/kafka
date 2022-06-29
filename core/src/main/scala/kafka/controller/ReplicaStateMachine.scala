@@ -356,10 +356,15 @@ class ReplicaStateMachine(controller: KafkaController) extends Logging {
         if (hasStarted.get) {
           ControllerStats.leaderElectionTimer.time {
             try {
+              //获取到所有的broker
               val curBrokers = currentBrokerList.map(_.toInt).toSet.flatMap(zkUtils.getBrokerInfo)
+              //获取到所有broker的ID号
               val curBrokerIds = curBrokers.map(_.id)
+              //获取到所有的 live 的broker
               val liveOrShuttingDownBrokerIds = controllerContext.liveOrShuttingDownBrokerIds
+              //新加入进来的broker
               val newBrokerIds = curBrokerIds -- liveOrShuttingDownBrokerIds
+              //获取到宕机了的broker
               val deadBrokerIds = liveOrShuttingDownBrokerIds -- curBrokerIds
               val newBrokers = curBrokers.filter(broker => newBrokerIds(broker.id))
               controllerContext.liveBrokers = curBrokers
@@ -370,9 +375,14 @@ class ReplicaStateMachine(controller: KafkaController) extends Logging {
                 .format(newBrokerIdsSorted.mkString(","), deadBrokerIdsSorted.mkString(","), liveBrokerIdsSorted.mkString(",")))
               newBrokers.foreach(controllerContext.controllerChannelManager.addBroker)
               deadBrokerIds.foreach(controllerContext.controllerChannelManager.removeBroker)
+              //newBrokerIds 这个里面有的是 新注册上来的broker的号
+              //这个数据结构里面如果不为空，那么说明集群里面以后新的broker注册上来了
               if(newBrokerIds.nonEmpty)
+              //这儿就是注册上来了broker，然后我们看一下如何处理的？
                 controller.onBrokerStartup(newBrokerIdsSorted)
+              //如果deadBrokerIds数据不为空，那么说明有broker宕机了。
               if(deadBrokerIds.nonEmpty)
+              //TODO 就是对宕机了的broker进行处理
                 controller.onBrokerFailure(deadBrokerIdsSorted)
             } catch {
               case e: Throwable => error("Error while handling broker changes", e)

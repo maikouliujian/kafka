@@ -386,7 +386,7 @@ class ControllerBrokerRequestBatch(controller: KafkaController) extends  Logging
         val version = if (controller.config.interBrokerProtocolVersion >= KAFKA_0_10_0_IV1) 2: Short
                       else if (controller.config.interBrokerProtocolVersion >= KAFKA_0_9_0) 1: Short
                       else 0: Short
-
+        //TODO 构建请求
         val updateMetadataRequest =
           if (version == 0) {
             val liveBrokers = controllerContext.liveOrShuttingDownBrokers.map(_.getNode(SecurityProtocol.PLAINTEXT))
@@ -401,7 +401,7 @@ class ControllerBrokerRequestBatch(controller: KafkaController) extends  Logging
             }
             new UpdateMetadataRequest(version, controllerId, controllerEpoch, partitionStates.asJava, liveBrokers.asJava)
           }
-
+        //TODO 发送请求
         controller.sendRequest(broker, ApiKeys.UPDATE_METADATA_KEY, Some(version), updateMetadataRequest, null)
       }
       updateMetadataRequestMap.clear()

@@ -326,10 +326,20 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
       // increment the controller epoch
       incrementControllerEpoch(zkUtils.zkClient)
       // before reading source of truth from zookeeper, register the listeners to get broker/topic callbacks
+      //这个函数最重要的一个内容，就是注册各种监听器
+      //注册这些监听器的目的就是用来监听zk的目录的变化的。
+      //这些监听器是谁注册的呢？肯定是controller注册的了。
+      //换句话说，我们的一个controller一旦被选举出来以后
+      //干的第一个事，就是在ZK上面对各种各样的目录设置的了监听器
+      //其实说实话，controller就是通过监听这些目录的变化
+      //来管理Kafka集群的。
       registerReassignedPartitionsListener()
       registerIsrChangeNotificationListener()
       registerPreferredReplicaElectionListener()
+      //TODO 监听分区的变化
       partitionStateMachine.registerListeners()
+      //TODO 我们通过这儿注册了一个监听器，
+      //然后通过这个监听器，感知到集群里面有新的broker进来了。
       replicaStateMachine.registerListeners()
       initializeControllerContext()
       replicaStateMachine.startup()
@@ -423,6 +433,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     // broker via this update.
     // In cases of controlled shutdown leaders will not be elected when a new broker comes up. So at least in the
     // common controlled shutdown case, the metadata will reach the new brokers faster
+    //TODO 发送一个元数据更新的请求
     sendUpdateMetadataRequest(controllerContext.liveOrShuttingDownBrokerIds.toSeq)
     // the very first thing to do when a new broker comes up is send it the entire list of partitions that it is
     // supposed to host. Based on that the broker starts the high watermark threads for the input list of partitions
@@ -671,8 +682,10 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
   def startup() = {
     inLock(controllerContext.controllerLock) {
       info("Controller starting up")
+      //注册某个监听器，但是这个监听目前对于我们来说暂时不重要，所以我们就不看了。
       registerSessionExpirationListener()
       isRunning = true
+      //broker一启动，就要启动选举的方法。
       controllerElector.startup
       info("Controller startup complete")
     }
@@ -1021,6 +1034,7 @@ class KafkaController(val config : KafkaConfig, zkUtils: ZkUtils, val brokerStat
     try {
       brokerRequestBatch.newBatch()
       brokerRequestBatch.addUpdateMetadataRequestForBrokers(brokers, partitions)
+      //TODO 发元数据更新的请求给其他所有的broker
       brokerRequestBatch.sendRequestsToBrokers(epoch)
     } catch {
       case e : IllegalStateException => {

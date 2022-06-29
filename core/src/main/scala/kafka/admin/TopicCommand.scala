@@ -34,6 +34,8 @@ import scala.collection._
 import org.apache.kafka.clients.consumer.{ConsumerConfig => NewConsumerConfig}
 
 
+
+
 object TopicCommand extends Logging {
 
   def main(args: Array[String]): Unit = {
@@ -87,7 +89,7 @@ object TopicCommand extends Logging {
     } else
       allTopics
   }
-
+  //TODO 创建topic调用的是这个方法
   def createTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
     val topic = opts.options.valueOf(opts.topicOpt)
     val configs = parseTopicConfigsToBeAdded(opts)
@@ -96,7 +98,26 @@ object TopicCommand extends Logging {
       println("WARNING: Due to limitations in metric names, topics with a period ('.') or underscore ('_') could collide. To avoid issues it is best to use either, but not both.")
     try {
       if (opts.options.has(opts.replicaAssignmentOpt)) {
+        //获取到的分配的方案
+        /**
+         * topic:
+         *    p0:
+         *       p0_0,p0_1,p0_2(leader)
+         *    p1:
+         *       p1_0,p1_1,p1_2(leader)
+         *    p2:
+         *       p2_0,p2_1,p2_2(leader)
+         *
+         *    Map[Int, List[Int]]
+         *
+         *    Int:Broker id
+         *    List[Int]: 分区号
+         *
+         *    0，【 p0_0，p2_0， p1_0】
+         *
+         */
         val assignment = parseReplicaAssignment(opts.options.valueOf(opts.replicaAssignmentOpt))
+        //把分配方案写入到ZK上面
         AdminUtils.createOrUpdateTopicPartitionAssignmentPathInZK(zkUtils, topic, assignment, configs, update = false)
       } else {
         CommandLineUtils.checkRequiredArgs(opts.parser, opts.options, opts.partitionsOpt, opts.replicationFactorOpt)

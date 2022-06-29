@@ -46,21 +46,37 @@ class ZookeeperLeaderElector(controllerContext: ControllerContext,
 
   def startup {
     inLock(controllerContext.controllerLock) {
+      //TODO 对zk上面的/controller目录注册了监听器
       controllerContext.zkUtils.zkClient.subscribeDataChanges(electionPath, leaderChangeListener)
+      //todo 选举
       elect
     }
   }
 
   private def getControllerID(): Int = {
+    //从/controller目录下面去获取数据
     controllerContext.zkUtils.readDataMaybeNull(electionPath)._1 match {
+      //如果获取到了数据，那么返回了的应该就是一个ID，这个id号就是某个broker的id号
+      //也就是说这个broker 就是controller
        case Some(controller) => KafkaController.parseControllerId(controller)
+       //如果获取不到就返回-1
        case None => -1
     }
   }
 
   def elect: Boolean = {
     val timestamp = SystemTime.milliseconds.toString
+    //构建一个数据信息
+    //比如有version
+    //有自己broker id号
+    //有时间戳
     val electString = Json.encode(Map("version" -> 1, "brokerid" -> brokerId, "timestamp" -> timestamp))
+    //要去获取controller的 id号。
+
+    //我们用的是场景驱动的方式，此时此刻应该就是我们的第一台服务器
+    //第一次启动，那么肯定还没有controller的，所以他这儿应该是获取不到
+    //ID
+    //如果是第一次启动，那么返回值是-1
    
    leaderId = getControllerID 
     /* 
@@ -70,17 +86,26 @@ class ZookeeperLeaderElector(controllerContext: ControllerContext,
      */
     if(leaderId != -1) {
        debug("Broker %d has been elected as leader, so stopping the election process.".format(leaderId))
+      //如果代码执行到这儿说明，之前就已经完成选举了。
        return amILeader
     }
 
     try {
+      //创建一个临时目录（如果有同学不知道ZK的临时目录有什么特点，自己下去了解一下）
+      // 创建这样的一个目录 /controller/，然后把这个目录里面写上一些自己的信息
       val zkCheckedEphemeral = new ZKCheckedEphemeral(electionPath,
                                                       electString,
                                                       controllerContext.zkUtils.zkConnection.getZookeeper,
                                                       JaasUtils.isZkSecurityEnabled())
+      //创建目录
       zkCheckedEphemeral.create()
       info(brokerId + " successfully elected as leader")
+      //也就是当前的服务器就是controller服务器了
       leaderId = brokerId
+      //如果创建完了，自己就成为了leader ，也就是controller了。
+
+      //这个是一个函数
+      //当一个controller被选举出来以后，就会执行这个函数。
       onBecomingLeader()
     } catch {
       case e: ZkNodeExistsException =>
