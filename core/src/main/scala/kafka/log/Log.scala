@@ -104,6 +104,7 @@ class Log(val dir: File,
   }
   val t = time.milliseconds
   /* the actual segments of the log */
+  //todo 存放着<startoffser,logsegment>
   private val segments: ConcurrentNavigableMap[java.lang.Long, LogSegment] = new ConcurrentSkipListMap[java.lang.Long, LogSegment]
   loadSegments()
 
@@ -337,6 +338,7 @@ class Log(val dir: File,
    * @return Information about the appended messages including the first and last offset.
    */
   def append(messages: ByteBufferMessageSet, assignOffsets: Boolean = true): LogAppendInfo = {
+    //todo 步骤一：校验数据 （Producer -》 Kafka）
     val appendInfo = analyzeAndValidateMessageSet(messages)
 
     // if we have any valid messages, append them to the log
@@ -349,9 +351,9 @@ class Log(val dir: File,
     try {
       // they are valid, insert them in the log
       lock synchronized {
-
         if (assignOffsets) {
           // assign offsets to the message set
+          //todo 步骤二： 分配offset
           val offset = new LongRef(nextOffsetMetadata.messageOffset)
           appendInfo.firstOffset = offset.value
           val now = time.milliseconds
@@ -367,6 +369,7 @@ class Log(val dir: File,
           } catch {
             case e: IOException => throw new KafkaException("Error in validating messages while appending to log '%s'".format(name), e)
           }
+          //todo 步骤三：获取合法的数据
           validMessages = validateAndOffsetAssignResult.validatedMessages
           appendInfo.maxTimestamp = validateAndOffsetAssignResult.maxTimestamp
           appendInfo.offsetOfMaxTimestamp = validateAndOffsetAssignResult.offsetOfMaxTimestamp
@@ -402,20 +405,31 @@ class Log(val dir: File,
         }
 
         // maybe roll the log if this segment is full
+        //todo 步骤四：获取一个可用的segment
         val segment = maybeRoll(messagesSize = validMessages.sizeInBytes,
                                 maxTimestampInMessages = appendInfo.maxTimestamp)
 
         // now append to the log
+        //todo 步骤五：把数据写入到segment里面去
         segment.append(firstOffset = appendInfo.firstOffset, largestTimestamp = appendInfo.maxTimestamp,
           offsetOfLargestTimestamp = appendInfo.offsetOfMaxTimestamp, messages = validMessages)
 
         // increment the log end offset
+        //todo //步骤六：更新LEO
+        //       LEO = lastOffset+1
         updateLogEndOffset(appendInfo.lastOffset + 1)
 
         trace("Appended message set to log %s with first offset: %d, next offset: %d, and messages: %s"
           .format(this.name, appendInfo.firstOffset, nextOffsetMetadata.messageOffset, validMessages))
-
+        //todo 步骤七：根据条件判断，然后把内存里面的数据写到磁盘
+        //假设我们配置的就是十分钟刷写一次磁盘
         if (unflushedMessages >= config.flushInterval)
+        //todo 永远不会执行这个操作，而是把 从内存里面刷写数据到磁盘这个
+        //todo 操作就交给了操作系统，有操作系统去管理，操作系统里面会有一些
+        //todo 机制，操作系统那儿也会定期的把数据写到磁盘里面。
+
+        //todo 但是我们同样也可以配置刷写磁盘的频率。
+        //todo 假设我们配置就是十分钟。那么这儿代码就是十分钟就有可能会被执行一次。
           flush()
 
         appendInfo
@@ -532,7 +546,7 @@ class Log(val dir: File,
     val next = currentNextOffsetMetadata.messageOffset
     if(startOffset == next)
       return FetchDataInfo(currentNextOffsetMetadata, MessageSet.Empty)
-
+    //todo 找到小于等于startOffset的第一个segment
     var entry = segments.floorEntry(startOffset)
 
     // attempt to read beyond the log end offset is an error
@@ -673,12 +687,14 @@ class Log(val dir: File,
     */
   def deleteOldSegments(): Int = {
     if (!config.delete) return 0
+    //todo 根据时间或者大小删除
     deleteRetenionMsBreachedSegments() + deleteRetentionSizeBreachedSegments()
   }
 
   private def deleteRetenionMsBreachedSegments() : Int = {
     if (config.retentionMs < 0) return 0
     val startMs = time.milliseconds
+    //todo 根据时间删除文件，默认7d
     deleteOldSegments(startMs - _.largestTimestamp > config.retentionMs)
   }
 
@@ -731,18 +747,30 @@ class Log(val dir: File,
    * @return The currently active segment after (perhaps) rolling to a new segment
    */
   private def maybeRoll(messagesSize: Int, maxTimestampInMessages: Long): LogSegment = {
+    //获取当前最新的segment
     val segment = activeSegment
     val now = time.milliseconds
     val reachedRollMs = segment.timeWaitedForRoll(now, maxTimestampInMessages) > config.segmentMs - segment.rollJitterMs
+    //第一个条件： kafka默认一个segment的大小是1G
+    //如果当前的segment的大小再加上 将要写入进去的数据的大小如果超过一个G
+    //就会新建一个segment
     if (segment.size > config.segmentSize - messagesSize ||
+      //第二个条件：每隔一段时间都会新建一个
+      //这个策略我们一般是不用的。
         (segment.size > 0 && reachedRollMs) ||
-        segment.index.isFull || segment.timeIndex.isFull) {
+      //第三个条件：有一定的条件
+        segment.index.isFull ||
+      //第四个条件：有一定的条件
+      segment.timeIndex.isFull) {
       debug(s"Rolling new log segment in $name (log_size = ${segment.size}/${config.segmentSize}}, " +
           s"index_size = ${segment.index.entries}/${segment.index.maxEntries}, " +
           s"time_index_size = ${segment.timeIndex.entries}/${segment.timeIndex.maxEntries}, " +
           s"inactive_time_ms = ${segment.timeWaitedForRoll(now, maxTimestampInMessages)}/${config.segmentMs - segment.rollJitterMs}).")
+      //todo //新建一个segment
       roll()
     } else {
+      //直接返回刚刚 获取到的最新的segment
+      //说明刚刚获取的这个segment是可以使用的。
       segment
     }
   }
@@ -756,7 +784,14 @@ class Log(val dir: File,
   def roll(): LogSegment = {
     val start = time.nanoseconds
     lock synchronized {
+      //LEO=lastoffset+1
+      //获取LEO的值作为最新的一个偏移量
+      //举个例子：lastoffset=10001
+      //LEO=10002
+      //我们这儿新获取一个偏移量的时候，用的是10002这个值。
+      //todo 创建三个文件【.log、.index、.timeindex】
       val newOffset = logEndOffset
+      //todo 新建一个文件。用LEO的名字作为文件名。
       val logFile = logFilename(dir, newOffset)
       val indexFile = indexFilename(dir, newOffset)
       val timeIndexFile = timeIndexFilename(dir, newOffset)
@@ -775,6 +810,7 @@ class Log(val dir: File,
           seg.log.trim()
         }
       }
+      //新建出来一个LogSegment
       val segment = new LogSegment(dir,
                                    startOffset = newOffset,
                                    indexIntervalBytes = config.indexInterval,
@@ -784,6 +820,7 @@ class Log(val dir: File,
                                    fileAlreadyExists = false,
                                    initFileSize = initFileSize,
                                    preallocate = config.preallocate)
+      //TODO 把segment添加到某一个数据结构里面
       val prev = addSegment(segment)
       if(prev != null)
         throw new KafkaException("Trying to roll a new log segment for topic partition %s with start offset %d while it already exists.".format(name, newOffset))
@@ -794,7 +831,8 @@ class Log(val dir: File,
       scheduler.schedule("flush-log", () => flush(newOffset), delay = 0L)
 
       info("Rolled new log segment for '" + name + "' in %.0f ms.".format((System.nanoTime - start) / (1000.0*1000.0)))
-
+      //返回新创建的segment
+      //在scala里面最后一行代码就是返回值。
       segment
     }
   }
@@ -819,8 +857,10 @@ class Log(val dir: File,
       return
     debug("Flushing log '" + name + " up to offset " + offset + ", last flushed: " + lastFlushTime + " current time: " +
           time.milliseconds + " unflushed = " + unflushedMessages)
-    for(segment <- logSegments(this.recoveryPoint, offset))
+    for(segment <- logSegments(this.recoveryPoint, offset)) {
+      //todo segment 刷写日志
       segment.flush()
+    }
     lock synchronized {
       if(offset > this.recoveryPoint) {
         this.recoveryPoint = offset

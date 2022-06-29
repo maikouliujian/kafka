@@ -206,6 +206,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         notifyClusterListeners(kafkaMetricsReporters ++ reporters.asScala)
 
         /* start log manager */
+        //todo 初始化logmanager，用来写日志
         logManager = createLogManager(zkUtils.zkClient, brokerState)
         logManager.startup()
 
@@ -214,11 +215,12 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         this.logIdent = "[Kafka Server " + config.brokerId + "], "
 
         metadataCache = new MetadataCache(config.brokerId)
-
+        //todo //NIO的服务端
         socketServer = new SocketServer(config, metrics, kafkaMetricsTime)
         socketServer.startup()
 
         /* start replica manager */
+        //todo 初始化ReplicaManager
         replicaManager = new ReplicaManager(config, metrics, time, kafkaMetricsTime, zkUtils, kafkaScheduler, logManager,
           isShuttingDown, quotaManagers.follower)
         replicaManager.startup()
@@ -243,7 +245,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
         /* start processing requests */
         apis = new KafkaApis(socketServer.requestChannel, replicaManager, adminManager, groupCoordinator,
           kafkaController, zkUtils, config.brokerId, config, metadataCache, metrics, authorizer, quotaManagers, clusterId)
-
+        //TODO 就是它去处理的队列里面的请求的
         requestHandlerPool = new KafkaRequestHandlerPool(config.brokerId, socketServer.requestChannel, apis, config.numIoThreads)
 
         Mx4jLoader.maybeLoad()
@@ -644,6 +646,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = SystemTime, threadNamePr
                                       maxIoBytesPerSecond = config.logCleanerIoMaxBytesPerSecond,
                                       backOffMs = config.logCleanerBackoffMs,
                                       enableCleaner = config.logCleanerEnable)
+    //todo logDirs 通常情况下会对应多个目录（生产环境里面）
     new LogManager(logDirs = config.logDirs.map(new File(_)).toArray,
                    topicConfigs = configs,
                    defaultConfig = defaultLogConfig,

@@ -221,6 +221,7 @@ public class Selector implements Selectable {
      * Note that we are not checking if the connection id is valid - since the connection already exists
      */
     public void register(String id, SocketChannel socketChannel) throws ClosedChannelException {
+        //todo 注册OP_READ
         SelectionKey key = socketChannel.register(nioSelector, SelectionKey.OP_READ);
         KafkaChannel channel = channelBuilder.buildChannel(id, key, maxReceiveSize);
         key.attach(channel);
@@ -380,6 +381,7 @@ public class Selector implements Selectable {
 
                 //里面不断的读取数据，读取数据的代码我们之前就已经分析过
                 //里面还涉及到粘包和拆包的一些问题。
+                //todo 处理读请求事件
                 /* if channel is ready read from any connections that have readable data */
                 if (channel.ready() && key.isReadable() && !hasStagedReceive(channel)) {
                     NetworkReceive networkReceive;

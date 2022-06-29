@@ -253,11 +253,17 @@ public class NetworkClient implements KafkaClient {
         String nodeId = request.request().destination();
         if (!canSendRequest(nodeId))
             throw new IllegalStateException("Attempt to send a request to node " + nodeId + " which is not ready.");
+        //todo 发送请求的核心代码
         doSend(request, now);
     }
 
     private void doSend(ClientRequest request, long now) {
         request.setSendTimeMs(now);
+        //这儿往inFlightRequests 组件里存 Request请求。
+        //存储的就是还没有收到响应的请求。
+        //这个里面默认最多能存5个请求。
+        //其实我们可以猜想一个事，如果我们的请求发送出去了
+        //然后也成功的接受到了响应，后面就会到这儿把这个请求移除。
         this.inFlightRequests.add(request);
         selector.send(request.request());
     }

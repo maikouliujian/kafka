@@ -235,6 +235,7 @@ class ReplicaFetcherThread(name: String,
   }
 
   protected def fetch(fetchRequest: FetchRequest): Seq[(TopicPartition, PartitionData)] = {
+    //发送请求 ApiKeys.FETCH
     val clientResponse = sendRequest(ApiKeys.FETCH, Some(fetchRequestVersion), fetchRequest.underlying)
     new FetchResponse(clientResponse.responseBody).responseData.asScala.toSeq.map { case (key, value) =>
       key -> new PartitionData(value)
@@ -250,6 +251,7 @@ class ReplicaFetcherThread(name: String,
       else {
         val send = new RequestSend(sourceBroker.id.toString, header, request.toStruct)
         val clientRequest = new ClientRequest(time.milliseconds(), true, send, null)
+        //TODO 把请求给发送出去
         networkClient.blockingSendAndReceive(clientRequest)(time)
       }
     }

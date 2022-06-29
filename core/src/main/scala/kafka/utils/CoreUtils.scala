@@ -55,7 +55,10 @@ object CoreUtils extends Logging {
    */
   def runnable(fun: => Unit): Runnable =
     new Runnable {
-      def run() = fun
+      def run() = fun //todo 把{}省了
+//      def run(): Unit ={
+//        fun
+//      }
     }
 
   /**

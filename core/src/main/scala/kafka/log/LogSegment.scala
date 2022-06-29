@@ -94,15 +94,26 @@ class LogSegment(val log: FileMessageSet,
       if (physicalPosition == 0)
         rollingBasedTimestamp = Some(largestTimestamp)
       // append the messages
+      //TODO 写数据到磁盘（内存）
       log.append(messages)
       // Update the in memory max timestamp and corresponding offset.
+      //TODO 写索引
+      //这儿有个条件，也就是说不是来一条数据就写一条索引
+      //而是达到一定条件才会去写索引，所以我们管这样的索引
+      //叫：稀松索引
+      //当我们写数据（消息）写了4096字节的时候会写一条索引
+      //换句话说就是每写4096字节的消息 会更新一条索引。
+      // 0 > 4096
       if (largestTimestamp > maxTimestampSoFar) {
         maxTimestampSoFar = largestTimestamp
         offsetOfMaxTimestamp = offsetOfLargestTimestamp
       }
       // append an entry to the index (if needed)
+      //todo indexIntervalBytes默认4096
       if(bytesSinceLastIndexEntry > indexIntervalBytes) {
+        //todo 内存映射写索引
         index.append(firstOffset, physicalPosition)
+        //todo 内存映射写timeindex
         timeIndex.maybeAppend(maxTimestampSoFar, offsetOfMaxTimestamp)
         bytesSinceLastIndexEntry = 0
       }
@@ -185,7 +196,7 @@ class LogSegment(val log: FileMessageSet,
             mapping._1.position
         min(min(maxPosition, endPosition) - startPosition.position, adjustedMaxSize).toInt
     }
-
+    //todo 最终返回的对象
     FetchDataInfo(offsetMetadata, log.read(startPosition.position, length),
       firstMessageSetIncomplete = adjustedMaxSize < messageSetSize)
   }

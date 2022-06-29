@@ -112,8 +112,10 @@ class FileMessageSet private[kafka](@volatile var file: File,
   def read(position: Int, size: Int): FileMessageSet = {
     if(position < 0)
       throw new IllegalArgumentException("Invalid position: " + position)
-    if(size < 0)
+    if(size < 0) {
       throw new IllegalArgumentException("Invalid size: " + size)
+    }
+    //todo 找到了start，end position
     new FileMessageSet(file,
                        channel,
                        start = this.start + position,

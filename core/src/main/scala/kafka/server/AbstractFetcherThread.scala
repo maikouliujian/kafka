@@ -90,6 +90,7 @@ abstract class AbstractFetcherThread(name: String,
   override def doWork() {
 
     val fetchRequest = inLock(partitionMapLock) {
+      //todo 构建请求
       val fetchRequest = buildFetchRequest(partitionStates.partitionStates.asScala.map { state =>
         state.topicPartition -> state.value
       })
@@ -99,8 +100,10 @@ abstract class AbstractFetcherThread(name: String,
       }
       fetchRequest
     }
-    if (!fetchRequest.isEmpty)
+    if (!fetchRequest.isEmpty) {
+      //todo 处理请求
       processFetchRequest(fetchRequest)
+    }
   }
 
   private def processFetchRequest(fetchRequest: REQ) {
@@ -115,6 +118,9 @@ abstract class AbstractFetcherThread(name: String,
 
     try {
       trace("Issuing to broker %d of fetch request %s".format(sourceBroker.id, fetchRequest))
+      //todo 调用了fetch这个方法，然后我们知道
+      //这个方法里面肯定是发送了网络请求
+      //给leader partition所在的服务器。
       responseData = fetch(fetchRequest)
     } catch {
       case t: Throwable =>

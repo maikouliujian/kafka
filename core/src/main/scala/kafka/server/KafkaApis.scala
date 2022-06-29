@@ -76,6 +76,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         format(request.requestDesc(true), request.connectionId, request.securityProtocol, request.session.principal))
       ApiKeys.forId(request.requestId) match {
         case ApiKeys.PRODUCE => handleProducerRequest(request)
+        //todo follower拉取数据的请求
         case ApiKeys.FETCH => handleFetchRequest(request)
         case ApiKeys.LIST_OFFSETS => handleOffsetRequest(request)
         case ApiKeys.METADATA => handleTopicMetadataRequest(request)
@@ -360,7 +361,6 @@ class KafkaApis(val requestChannel: RequestChannel,
 
     // the callback for sending a produce response
     def sendResponseCallback(responseStatus: Map[TopicPartition, PartitionResponse]) {
-
       val mergedResponseStatus = responseStatus ++ 
         unauthorizedForWriteRequestInfo.mapValues(_ =>
            new PartitionResponse(Errors.TOPIC_AUTHORIZATION_FAILED.code, -1, Message.NoTimestamp)) ++ 
@@ -381,6 +381,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       }
 
       def produceResponseCallback(delayTimeMs: Int) {
+        //todo ack = 0，无需响应
         if (produceRequest.acks == 0) {
           // no operation needed if producer request.required.acks = 0; however, if there is any error in handling
           // the request, since no response is expected by the producer, the server will close socket server so that
@@ -399,6 +400,7 @@ class KafkaApis(val requestChannel: RequestChannel,
             requestChannel.noOperation(request.processor, request)
           }
         } else {
+          //todo ack = 1，需要响应
           val respHeader = new ResponseHeader(request.header.correlationId)
           val respBody = request.header.apiVersion match {
             case 0 => new ProduceResponse(mergedResponseStatus.asJava)
@@ -433,6 +435,12 @@ class KafkaApis(val requestChannel: RequestChannel,
       }
 
       // call the replica manager to append messages to the replicas
+      //todo /**
+      //        * 把接收到的数据追加到磁盘上面。
+      //        *
+      //        * 大家目前只需要知道，我们的代码走到这儿
+      //        * 最终数据就会被写到磁盘上面。
+      //        */
       replicaManager.appendMessages(
         produceRequest.timeout.toLong,
         produceRequest.acks,
@@ -508,6 +516,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       def fetchResponseCallback(delayTimeMs: Int) {
         trace(s"Sending fetch response to client ${fetchRequest.clientId} of " +
           s"${convertedPartitionData.map { case (_, v) => v.messages.sizeInBytes }.sum} bytes")
+        //todo 返回响应
         val response = FetchResponse(fetchRequest.correlationId, mergedPartitionData.toSeq, fetchRequest.versionId, delayTimeMs)
         requestChannel.sendResponse(new RequestChannel.Response(request, new FetchResponseSend(request.connectionId, response)))
       }
@@ -531,6 +540,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       sendResponseCallback(Seq.empty)
     else {
       // call the replica manager to fetch messages from the local replica
+      //todo 拉取数据
       replicaManager.fetchMessages(
         fetchRequest.maxWait.toLong,
         fetchRequest.replicaId,

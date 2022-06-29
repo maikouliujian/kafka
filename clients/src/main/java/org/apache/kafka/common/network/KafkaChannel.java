@@ -120,7 +120,7 @@ public class KafkaChannel {
             return socket.getLocalAddress().toString();
         return socket.getInetAddress().toString();
     }
-
+    //todo 注册写事件
     public void setSend(Send send) {
         if (this.send != null)
             throw new IllegalStateException("Attempt to begin a send operation with prior send operation still in progress.");
@@ -147,7 +147,7 @@ public class KafkaChannel {
 
     public Send write() throws IOException {
         Send result = null;
-        //send方法就是发送网络请求的方法
+        //todo send方法就是发送网络请求的方法
         if (send != null && send(send)) {
             result = send;
             send = null;
