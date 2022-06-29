@@ -126,7 +126,7 @@ object DelayedOperationPurgatory {
 }
 
 /**
- * A helper purgatory class for bookkeeping delayed operations with a timeout, and expiring timed out operations.
+ * A helper purgatory 【炼狱; 受难的处所(或状态); 惩戒所; 折磨; 磨难】class for bookkeeping delayed operations with a timeout, and expiring timed out operations.
  */
 class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
                                                        timeoutTimer: Timer,
@@ -164,6 +164,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
     metricsTags
   )
 
+  //todo 启动时间轮线程【reaper：收割者】
   if (reaperEnabled)
     expirationReaper.start()
 
@@ -376,6 +377,7 @@ class DelayedOperationPurgatory[T <: DelayedOperation](purgatoryName: String,
     false) {
 
     override def doWork() {
+      //todo 默认超时时间为200ms
       advanceClock(200L)
     }
   }
