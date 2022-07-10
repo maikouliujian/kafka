@@ -146,6 +146,7 @@ public class Fetcher<K, V> {
      * an in-flight fetch or pending fetch data.
      */
     public void sendFetches() {
+        //todo 创建createFetchRequests
         for (Map.Entry<Node, FetchRequest> fetchEntry : createFetchRequests().entrySet()) {
             final FetchRequest request = fetchEntry.getValue();
             final Node fetchTarget = fetchEntry.getKey();

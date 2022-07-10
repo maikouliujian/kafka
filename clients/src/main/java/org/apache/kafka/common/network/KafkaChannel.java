@@ -160,6 +160,7 @@ public class KafkaChannel {
     }
 
     private boolean send(Send send) throws IOException {
+        //todo 真正触发send请求，通过nio写出去
         send.writeTo(transportLayer);
         if (send.completed())
             transportLayer.removeInterestOps(SelectionKey.OP_WRITE);

@@ -64,7 +64,7 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
             else
                 log.debug("Skipping assignment for topic {} since no metadata is available", topic);
         }
-
+        //todo 分区策略RangeAssignor和RoundRobinAssignor
         Map<String, List<TopicPartition>> rawAssignments = assign(partitionsPerTopic, topicSubscriptions);
 
         // this class has maintains no user data, so just wrap the results

@@ -119,6 +119,7 @@ class GroupCoordinator(val brokerId: Int,
             responseCallback(joinError(memberId, Errors.UNKNOWN_MEMBER_ID.code))
           } else {
             val group = groupManager.addGroup(new GroupMetadata(groupId))
+            //todo JoinGroup
             doJoinGroup(group, memberId, clientId, clientHost, rebalanceTimeoutMs, sessionTimeoutMs, protocolType, protocols, responseCallback)
           }
 
@@ -191,6 +192,7 @@ class GroupCoordinator(val brokerId: Int,
           case Empty | Stable =>
             if (memberId == JoinGroupRequest.UNKNOWN_MEMBER_ID) {
               // if the member id is unknown, register the member to the group
+              //todo 第一次进来Empty
               addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, clientId, clientHost, protocolType, protocols, group, responseCallback)
             } else {
               val member = group.get(memberId)
@@ -231,6 +233,7 @@ class GroupCoordinator(val brokerId: Int,
     } else {
       groupManager.getGroup(groupId) match {
         case None => responseCallback(Array.empty, Errors.UNKNOWN_MEMBER_ID.code)
+        //todo SyncGroup
         case Some(group) => doSyncGroup(group, generation, memberId, groupAssignment, responseCallback)
       }
     }
@@ -260,6 +263,7 @@ class GroupCoordinator(val brokerId: Int,
             group.get(memberId).awaitingSyncCallback = responseCallback
 
             // if this is the leader, then we can attempt to persist state and transition to stable
+            //todo 如果是leader
             if (memberId == group.leaderId) {
               info(s"Assignment received from leader for group ${group.groupId} for generation ${group.generationId}")
 
@@ -277,7 +281,9 @@ class GroupCoordinator(val brokerId: Int,
                       resetAndPropagateAssignmentError(group, error)
                       maybePrepareRebalance(group)
                     } else {
+                      //todo 下发分区分配
                       setAndPropagateAssignment(group, assignment)
+                      //todo 切换状态为Stable
                       group.transitionTo(Stable)
                     }
                   }
@@ -417,6 +423,7 @@ class GroupCoordinator(val brokerId: Int,
           }
 
         case Some(group) =>
+          //todo 处理CommitOffsets
           doCommitOffsets(group, memberId, generationId, offsetMetadata, responseCallback)
       }
     }
@@ -451,6 +458,7 @@ class GroupCoordinator(val brokerId: Int,
     }
 
     // store the offsets without holding the group lock
+    //todo 将offset存储
     delayedOffsetStore.foreach(groupManager.store)
   }
 
@@ -561,6 +569,7 @@ class GroupCoordinator(val brokerId: Int,
   private def propagateAssignment(group: GroupMetadata, error: Errors) {
     for (member <- group.allMemberMetadata) {
       if (member.awaitingSyncCallback != null) {
+        //todo 回调每个consumer member的分配分区消费方案member.assignment
         member.awaitingSyncCallback(member.assignment, error.code)
         member.awaitingSyncCallback = null
 
@@ -621,6 +630,7 @@ class GroupCoordinator(val brokerId: Int,
     val member = new MemberMetadata(memberId, group.groupId, clientId, clientHost, rebalanceTimeoutMs,
       sessionTimeoutMs, protocolType, protocols)
     member.awaitingJoinCallback = callback
+    //todo group里添加信息
     group.add(member.memberId, member)
     maybePrepareRebalance(group)
     member

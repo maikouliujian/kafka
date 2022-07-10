@@ -308,11 +308,12 @@ public class ConsumerNetworkClient implements Closeable {
 
     private void firePendingCompletedRequests() {
         boolean completedRequestsFired = false;
+        //todo 轮训处理请求的回调
         for (;;) {
             RequestFutureCompletionHandler completionHandler = pendingCompletion.poll();
             if (completionHandler == null)
                 break;
-
+            //todo 处理请求完成
             completionHandler.fireCompletion();
             completedRequestsFired = true;
         }
@@ -389,6 +390,7 @@ public class ConsumerNetworkClient implements Closeable {
             while (iterator.hasNext()) {
                 ClientRequest request = iterator.next();
                 if (client.ready(node, now)) {
+                    //todo consumer client发送请求到server
                     client.send(request, now);
                     iterator.remove();
                     requestsSent = true;
@@ -476,15 +478,16 @@ public class ConsumerNetworkClient implements Closeable {
                         api, request, correlation, send.destination());
                 future.raise(DisconnectException.INSTANCE);
             } else {
+                //todo 处理完成的回调
                 future.complete(response);
             }
         }
-
+        //todo 请求的回调
         public void onFailure(RuntimeException e) {
             this.e = e;
             pendingCompletion.add(this);
         }
-
+        //todo 请求的回调
         @Override
         public void onComplete(ClientResponse response) {
             this.response = response;

@@ -51,6 +51,7 @@ import scala.collection.JavaConverters._
 /**
  * Logic to handle the various Kafka requests
  */
+//todo 处理各种请求
 class KafkaApis(val requestChannel: RequestChannel,
                 val replicaManager: ReplicaManager,
                 val adminManager: AdminManager,
@@ -84,12 +85,16 @@ class KafkaApis(val requestChannel: RequestChannel,
         case ApiKeys.STOP_REPLICA => handleStopReplicaRequest(request)
         case ApiKeys.UPDATE_METADATA_KEY => handleUpdateMetadataRequest(request)
         case ApiKeys.CONTROLLED_SHUTDOWN_KEY => handleControlledShutdownRequest(request)
+        //todo 处理提交offset
         case ApiKeys.OFFSET_COMMIT => handleOffsetCommitRequest(request)
         case ApiKeys.OFFSET_FETCH => handleOffsetFetchRequest(request)
+        //todo 处理consumer对于GroupCoordinator的选取
         case ApiKeys.GROUP_COORDINATOR => handleGroupCoordinatorRequest(request)
+        //TODO 处理joingroup请求
         case ApiKeys.JOIN_GROUP => handleJoinGroupRequest(request)
         case ApiKeys.HEARTBEAT => handleHeartbeatRequest(request)
         case ApiKeys.LEAVE_GROUP => handleLeaveGroupRequest(request)
+        //todo 处理来自consumer leader的SYNC_GROUP请求
         case ApiKeys.SYNC_GROUP => handleSyncGroupRequest(request)
         case ApiKeys.DESCRIBE_GROUPS => handleDescribeGroupRequest(request)
         case ApiKeys.LIST_GROUPS => handleListGroupsRequest(request)
@@ -968,6 +973,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       val responseBody = new GroupCoordinatorResponse(Errors.GROUP_AUTHORIZATION_FAILED.code, Node.noNode)
       requestChannel.sendResponse(new RequestChannel.Response(request, new ResponseSend(request.connectionId, responseHeader, responseBody)))
     } else {
+      //todo 找到groupId对应的分区【本质就是hash(groupId) % 50】
       val partition = coordinator.partitionFor(groupCoordinatorRequest.groupId)
 
       // get metadata (and create the topic if necessary)
@@ -976,6 +982,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       val responseBody = if (offsetsTopicMetadata.error != Errors.NONE) {
         new GroupCoordinatorResponse(Errors.GROUP_COORDINATOR_NOT_AVAILABLE.code, Node.noNode)
       } else {
+        //TODO 找到partition的leader节点
         val coordinatorEndpoint = offsetsTopicMetadata.partitionMetadata().asScala
           .find(_.partition == partition)
           .map(_.leader())
@@ -990,6 +997,7 @@ class KafkaApis(val requestChannel: RequestChannel,
 
       trace("Sending consumer metadata %s for correlation id %d to client %s."
         .format(responseBody, request.header.correlationId, request.header.clientId))
+      //todo 响应到客户端
       requestChannel.sendResponse(new RequestChannel.Response(request, new ResponseSend(request.connectionId, responseHeader, responseBody)))
     }
   }
@@ -1061,6 +1069,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       // let the coordinator to handle join-group
       val protocols = joinGroupRequest.groupProtocols().map(protocol =>
         (protocol.name, Utils.toArray(protocol.metadata))).toList
+      //todo 处理joingroup
       coordinator.handleJoinGroup(
         joinGroupRequest.groupId,
         joinGroupRequest.memberId,
@@ -1079,6 +1088,7 @@ class KafkaApis(val requestChannel: RequestChannel,
 
     val syncGroupRequest = request.body.asInstanceOf[SyncGroupRequest]
 
+    //todo coordinator下发consumer member消费分区方案的回调函数
     def sendResponseCallback(memberState: Array[Byte], errorCode: Short) {
       val responseBody = new SyncGroupResponse(errorCode, ByteBuffer.wrap(memberState))
       val responseHeader = new ResponseHeader(request.header.correlationId)

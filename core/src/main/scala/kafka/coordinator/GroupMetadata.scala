@@ -165,7 +165,7 @@ private[coordinator] class GroupMetadata(val groupId: String, initialState: Grou
     assert(groupId == member.groupId)
     assert(this.protocolType.orNull == member.protocolType)
     assert(supportsProtocols(member.protocols))
-
+    //todo 第一次进来leaderId == null
     if (leaderId == null)
       leaderId = memberId
     members.put(memberId, member)

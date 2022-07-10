@@ -110,7 +110,7 @@ public class RequestFuture<T> implements ConsumerNetworkClient.PollCondition {
     public void complete(T value) {
         if (value instanceof RuntimeException)
             throw new IllegalArgumentException("The argument to complete can not be an instance of RuntimeException");
-
+        //todo 设置值
         if (!result.compareAndSet(INCOMPLETE_SENTINEL, value))
             throw new IllegalStateException("Invalid attempt to complete a request future which is already complete");
         fireSuccess();
@@ -183,6 +183,7 @@ public class RequestFuture<T> implements ConsumerNetworkClient.PollCondition {
         addListener(new RequestFutureListener<T>() {
             @Override
             public void onSuccess(T value) {
+                //todo 获取响应
                 adapter.onSuccess(value, adapted);
             }
 

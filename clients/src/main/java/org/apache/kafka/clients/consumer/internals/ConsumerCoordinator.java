@@ -69,6 +69,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     private final ConsumerCoordinatorMetrics sensors;
     private final SubscriptionState subscriptions;
     private final OffsetCommitCallback defaultOffsetCommitCallback;
+    //todo 是否自动提交offset
     private final boolean autoCommitEnabled;
     private final int autoCommitIntervalMs;
     private final ConsumerInterceptors<?, ?> interceptors;
@@ -245,6 +246,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         invokeCompletedOffsetCommitCallbacks();
 
         if (subscriptions.partitionsAutoAssigned() && coordinatorUnknown()) {
+            //TODO 计算出来哪台服务器是coondinator服务器了
             ensureCoordinatorReady();
             now = time.milliseconds();
         }
@@ -255,7 +257,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
             // that we have matched the pattern against the cluster's topics at least once before joining.
             if (subscriptions.hasPatternSubscription())
                 client.ensureFreshMetadata();
-
+            //todo 注册请求的代码
             ensureActiveGroup();
             now = time.milliseconds();
         }
@@ -283,6 +285,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     protected Map<String, ByteBuffer> performAssignment(String leaderId,
                                                         String assignmentStrategy,
                                                         Map<String, ByteBuffer> allSubscriptions) {
+        //todo assignor
         PartitionAssignor assignor = lookupAssignor(assignmentStrategy);
         if (assignor == null)
             throw new IllegalStateException("Coordinator selected invalid assignment protocol: " + assignmentStrategy);
@@ -309,7 +312,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
         log.debug("Performing assignment for group {} using strategy {} with subscriptions {}",
                 groupId, assignor.name(), subscriptions);
-
+        //todo assignor的核心逻辑
         Map<String, Assignment> assignment = assignor.assign(metadata.fetch(), subscriptions);
 
         log.debug("Finished assignment for group {}: {}", groupId, assignment);
@@ -424,7 +427,11 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     public void commitOffsetsAsync(final Map<TopicPartition, OffsetAndMetadata> offsets, final OffsetCommitCallback callback) {
         invokeCompletedOffsetCommitCallbacks();
-
+        //todo 其实提交偏移量信息就是要提交
+        //coonrdinator
+        //offset ->  __consumer_offset 默认有50个分区 -》 4 leader partition 在哪台主机
+        //那么哪一台就是coondinator
+        //同时，我们这个消费组的 偏移量信息也是提交到这一台服务器（partition4这个leader partition）
         if (!coordinatorUnknown()) {
             doCommitOffsetsAsync(offsets, callback);
         } else {
@@ -455,6 +462,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     private void doCommitOffsetsAsync(final Map<TopicPartition, OffsetAndMetadata> offsets, final OffsetCommitCallback callback) {
         this.subscriptions.needRefreshCommits();
+        //todo offset提交请求
         RequestFuture<Void> future = sendOffsetCommitRequest(offsets);
         final OffsetCommitCallback cb = callback == null ? defaultOffsetCommitCallback : callback;
         future.addListener(new RequestFutureListener<Void>() {
@@ -527,6 +535,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
             doAutoCommitOffsetsAsync();
     }
 
+    //todo 提交offset
     private void doAutoCommitOffsetsAsync() {
         commitOffsetsAsync(subscriptions.allConsumed(), new OffsetCommitCallback() {
             @Override
@@ -575,7 +584,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     private RequestFuture<Void> sendOffsetCommitRequest(final Map<TopicPartition, OffsetAndMetadata> offsets) {
         if (offsets.isEmpty())
             return RequestFuture.voidSuccess();
-
+        //todo 获取coordinator
         Node coordinator = coordinator();
         if (coordinator == null)
             return RequestFuture.coordinatorNotAvailable();
@@ -607,7 +616,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 offsetData);
 
         log.trace("Sending offset-commit request with {} to coordinator {} for group {}", offsets, coordinator, groupId);
-
+        //todo offset提交给coordinator
         return client.send(coordinator, ApiKeys.OFFSET_COMMIT, req)
                 .compose(new OffsetCommitResponseHandler(offsets));
     }

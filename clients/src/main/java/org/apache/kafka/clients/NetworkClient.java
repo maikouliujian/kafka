@@ -310,6 +310,7 @@ public class NetworkClient implements KafkaClient {
                     //我们当时发送请求的时候，是如何封装这个请求。
                     //不过虽然目前我们还没看到，但是我们可以大胆猜一下。
                     //当时封装网络请求的时候，肯定是给他绑定了一个回调函数。
+                    //todo 请求的回调触发逻辑
                     response.request().callback().onComplete(response);
                 } catch (Exception e) {
                     log.error("Uncaught error in request completion:", e);

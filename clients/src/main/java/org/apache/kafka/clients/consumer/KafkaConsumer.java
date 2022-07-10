@@ -976,6 +976,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             long start = time.milliseconds();
             long remaining = timeout;
             do {
+                //todo 里面就是消费者去消费数据
                 Map<TopicPartition, List<ConsumerRecord<K, V>>> records = pollOnce(remaining);
                 if (!records.isEmpty()) {
                     // before returning the fetched records, we can send off the next round of fetches
@@ -1010,6 +1011,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @return The fetched records (may be empty)
      */
     private Map<TopicPartition, List<ConsumerRecord<K, V>>> pollOnce(long timeout) {
+        //todo consumer coordinator相关逻辑
         coordinator.poll(time.milliseconds());
 
         // fetch positions if we have partitions we're subscribed to that we
@@ -1023,6 +1025,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             return records;
 
         // send any new fetches (won't resend pending fetches)
+        //TODO 发送网络请求
         fetcher.sendFetches();
 
         long now = time.milliseconds();
@@ -1041,7 +1044,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         // prior to returning data so that the group can stabilize faster
         if (coordinator.needRejoin())
             return Collections.emptyMap();
-
+        //todo 获取到请求的结果。
         return fetcher.fetchedRecords();
     }
 
@@ -1476,6 +1479,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * Wakeup the consumer. This method is thread-safe and is useful in particular to abort a long poll.
      * The thread which is blocking in an operation will throw {@link org.apache.kafka.common.errors.WakeupException}.
      */
+    //todo 唤醒被阻塞的线程
     @Override
     public void wakeup() {
         this.client.wakeup();

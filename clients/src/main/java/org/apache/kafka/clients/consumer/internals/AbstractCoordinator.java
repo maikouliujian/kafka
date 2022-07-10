@@ -189,6 +189,7 @@ public abstract class AbstractCoordinator implements Closeable {
      */
     public synchronized void ensureCoordinatorReady() {
         while (coordinatorUnknown()) {
+            //todo 确定Coordinator
             RequestFuture<Void> future = lookupCoordinator();
             client.poll(future);
 
@@ -209,12 +210,14 @@ public abstract class AbstractCoordinator implements Closeable {
     protected synchronized RequestFuture<Void> lookupCoordinator() {
         if (findCoordinatorFuture == null) {
             // find a node to ask about the coordinator
+            //todo 随意找到了一台服务器
             Node node = this.client.leastLoadedNode();
             if (node == null) {
                 // TODO: If there are no brokers left, perhaps we should use the bootstrap set
                 // from configuration?
                 return RequestFuture.noBrokersAvailable();
             } else
+                //todo 发送请求
                 findCoordinatorFuture = sendGroupCoordinatorRequest(node);
         }
         return findCoordinatorFuture;
@@ -274,6 +277,7 @@ public abstract class AbstractCoordinator implements Closeable {
         // when sending heartbeats and does not necessarily require us to rejoin the group.
         ensureCoordinatorReady();
         startHeartbeatThreadIfNeeded();
+        //TODO 发送注册请求的代码在里面
         joinGroupIfNeeded();
     }
 
@@ -292,6 +296,7 @@ public abstract class AbstractCoordinator implements Closeable {
     // visible for testing. Joins the group without starting the heartbeat thread.
     void joinGroupIfNeeded() {
         while (needRejoin() || rejoinIncomplete()) {
+            //todo 再次判断是否已经确定好了哪台是coondinator服务器
             ensureCoordinatorReady();
 
             // call onJoinPrepare if needed. We set a flag to make sure that we do not call it a second
@@ -300,10 +305,11 @@ public abstract class AbstractCoordinator implements Closeable {
             // refresh which changes the matched subscription set) can occur while another rebalance is
             // still in progress.
             if (needsJoinPrepare) {
+                //todo 进行注册之前准备
                 onJoinPrepare(generation.generationId, generation.memberId);
                 needsJoinPrepare = false;
             }
-
+             //todo 注册
             RequestFuture<ByteBuffer> future = initiateJoinGroup();
             client.poll(future);
             resetJoinGroupFuture();
@@ -339,6 +345,7 @@ public abstract class AbstractCoordinator implements Closeable {
             disableHeartbeatThread();
 
             state = MemberState.REBALANCING;
+            //todo 发送joingroup请求
             joinFuture = sendJoinGroupRequest();
             joinFuture.addListener(new RequestFutureListener<ByteBuffer>() {
                 @Override
@@ -379,6 +386,7 @@ public abstract class AbstractCoordinator implements Closeable {
 
         // send a join group request to the coordinator
         log.info("(Re-)joining group {}", groupId);
+        //todo 发送JoinGroup请求
         JoinGroupRequest request = new JoinGroupRequest(
                 groupId,
                 this.sessionTimeoutMs,
@@ -416,8 +424,17 @@ public abstract class AbstractCoordinator implements Closeable {
                                 joinResponse.memberId(), joinResponse.groupProtocol());
                         AbstractCoordinator.this.rejoinNeeded = false;
                         if (joinResponse.isLeader()) {
+                            //todo join leader
+                            //TODO 我们所有的消费组里面的成员
+                            //TODO 都会去发送joinGroup
+                            //TODO 最终只会有一个consumer是leader
+                            //TODO 如果发现自己是leader的consumer，那么就会调用
+                            //TODO 这个方法，然后制定分区方案
+                            //TODO 把分区方案发送给coondinator
                             onJoinLeader(joinResponse).chain(future);
                         } else {
+                            //todo join follower
+                            //todo 如果是follower发送给coondinator一个空的分区消费方案
                             onJoinFollower().chain(future);
                         }
                     }
@@ -455,6 +472,7 @@ public abstract class AbstractCoordinator implements Closeable {
 
     private RequestFuture<ByteBuffer> onJoinFollower() {
         // send follower's sync group with an empty assignment
+        //todo 如果是follower consumer发送一个空的分配方案
         SyncGroupRequest request = new SyncGroupRequest(groupId, generation.generationId,
                 generation.memberId, Collections.<String, ByteBuffer>emptyMap());
         log.debug("Sending follower SyncGroup for group {} to coordinator {}: {}", groupId, this.coordinator, request);
@@ -464,11 +482,13 @@ public abstract class AbstractCoordinator implements Closeable {
     private RequestFuture<ByteBuffer> onJoinLeader(JoinGroupResponse joinResponse) {
         try {
             // perform the leader synchronization and send back the assignment for the group
+            //TODO 这个方法就是指定分区方案的方法
             Map<String, ByteBuffer> groupAssignment = performAssignment(joinResponse.leaderId(), joinResponse.groupProtocol(),
                     joinResponse.members());
 
             SyncGroupRequest request = new SyncGroupRequest(groupId, generation.generationId, generation.memberId, groupAssignment);
             log.debug("Sending leader SyncGroup for group {} to coordinator {}: {}", groupId, this.coordinator, request);
+            //todo 发送SyncGroup请求
             return sendSyncGroupRequest(request);
         } catch (RuntimeException e) {
             return RequestFuture.failure(e);
@@ -530,7 +550,9 @@ public abstract class AbstractCoordinator implements Closeable {
         // initiate the group metadata request
         log.debug("Sending coordinator request for group {} to broker {}", groupId, node);
         GroupCoordinatorRequest metadataRequest = new GroupCoordinatorRequest(this.groupId);
+        //todo 发送的是GROUP_COORDINATOR的请求  Kafkaapis
         return client.send(node, ApiKeys.GROUP_COORDINATOR, metadataRequest)
+                     //TODO 对响应进行处理
                      .compose(new GroupCoordinatorResponseHandler());
     }
 
@@ -548,6 +570,7 @@ public abstract class AbstractCoordinator implements Closeable {
             clearFindCoordinatorFuture();
             if (error == Errors.NONE) {
                 synchronized (AbstractCoordinator.this) {
+                    //todo 找到groupid的coordinator
                     AbstractCoordinator.this.coordinator = new Node(
                             Integer.MAX_VALUE - groupCoordinatorResponse.node().id(),
                             groupCoordinatorResponse.node().host(),
@@ -738,7 +761,9 @@ public abstract class AbstractCoordinator implements Closeable {
         public void onSuccess(ClientResponse clientResponse, RequestFuture<T> future) {
             try {
                 this.response = clientResponse;
+                //todo 解析Response
                 R responseObj = parse(clientResponse);
+                //todo 处理Response
                 handle(responseObj, future);
             } catch (RuntimeException e) {
                 if (!future.isDone())

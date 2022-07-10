@@ -59,6 +59,7 @@ public abstract class AbstractRequest extends AbstractRequestResponse {
             case LEAVE_GROUP:
                 return LeaveGroupRequest.parse(buffer, versionId);
             case SYNC_GROUP:
+
                 return SyncGroupRequest.parse(buffer, versionId);
             case STOP_REPLICA:
                 return StopReplicaRequest.parse(buffer, versionId);
