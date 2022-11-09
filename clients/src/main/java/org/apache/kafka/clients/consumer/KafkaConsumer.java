@@ -1105,6 +1105,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
     public void commitSync(final Map<TopicPartition, OffsetAndMetadata> offsets) {
         acquire();
         try {
+            //todo 提交offset的入口！！！
             coordinator.commitOffsetsSync(offsets);
         } finally {
             release();
