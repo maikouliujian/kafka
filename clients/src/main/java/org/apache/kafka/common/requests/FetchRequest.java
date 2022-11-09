@@ -55,6 +55,7 @@ public class FetchRequest extends AbstractRequest {
     private final LinkedHashMap<TopicPartition, PartitionData> fetchData;
 
     public static final class PartitionData {
+        //todo 从那个offset拉取数据
         public final long offset;
         public final int maxBytes;
 

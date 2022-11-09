@@ -195,6 +195,7 @@ public class Fetcher<K, V> {
         for (TopicPartition tp : partitions) {
             // TODO: If there are several offsets to reset, we could submit offset requests in parallel
             if (subscriptions.isAssigned(tp) && subscriptions.isOffsetResetNeeded(tp))
+                //todo 重置offset
                 resetOffset(tp);
         }
     }
@@ -339,10 +340,12 @@ public class Fetcher<K, V> {
             throw new NoOffsetForPartitionException(partition);
 
         log.debug("Resetting offset for partition {} to {} offset.", partition, strategy.name().toLowerCase(Locale.ROOT));
+        //todo 根据timestamp获取offset
         long offset = getOffsetsByTimes(Collections.singletonMap(partition, timestamp), Long.MAX_VALUE).get(partition).offset();
 
         // we might lose the assignment while fetching the offset, so check it is still active
         if (subscriptions.isAssigned(partition))
+            //todo 根据请求回来的offset进行重置
             this.subscriptions.seek(partition, offset);
     }
 
@@ -361,6 +364,7 @@ public class Fetcher<K, V> {
                 break;
 
             if (future.succeeded())
+                //todo 返回值
                 return future.value();
 
             if (!future.isRetriable())
@@ -634,7 +638,7 @@ public class Fetcher<K, V> {
                     fetch = new LinkedHashMap<>();
                     fetchable.put(node, fetch);
                 }
-
+                //todo 要拉取分区的offset
                 long position = this.subscriptions.position(partition);
                 fetch.put(partition, new FetchRequest.PartitionData(position, this.fetchSize));
                 log.trace("Added fetch request for partition {} at offset {}", partition, position);
@@ -644,6 +648,7 @@ public class Fetcher<K, V> {
         }
 
         // create the fetches
+        //todo 组装拉取数据请求
         Map<Node, FetchRequest> requests = new HashMap<>();
         for (Map.Entry<Node, LinkedHashMap<TopicPartition, FetchRequest.PartitionData>> entry : fetchable.entrySet()) {
             Node node = entry.getKey();

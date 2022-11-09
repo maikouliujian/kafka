@@ -1016,6 +1016,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 
         // fetch positions if we have partitions we're subscribed to that we
         // don't know the offset for
+        //todo 对于seekToBeginning和seekToEnd的请求需要重置offset
         if (!subscriptions.hasAllFetchPositions())
             updateFetchPositions(this.subscriptions.missingFetchPositions());
 
@@ -1025,7 +1026,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             return records;
 
         // send any new fetches (won't resend pending fetches)
-        //TODO 发送网络请求
+        //TODO 发送拉取数据网络请求
         fetcher.sendFetches();
 
         long now = time.milliseconds();
@@ -1525,6 +1526,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         // case if the user called seekToBeginning or seekToEnd. We do this check first to
         // avoid an unnecessary lookup of committed offsets (which typically occurs when
         // the user is manually assigning partitions and managing their own offsets).
+        //todo 重置offset
         fetcher.resetOffsetsIfNeeded(partitions);
 
         if (!subscriptions.hasAllFetchPositions(partitions)) {
