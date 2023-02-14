@@ -987,7 +987,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
                     // wakeups or any other errors to be triggered prior to returning the fetched records.
                     fetcher.sendFetches();
                     client.pollNoWakeup();
-
+                    //todo 封装ConsumerRecords
                     if (this.interceptors == null)
                         return new ConsumerRecords<>(records);
                     else

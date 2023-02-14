@@ -30,6 +30,7 @@ import org.apache.kafka.common.utils.Utils
 
 import scala.collection.mutable
 
+
 object ByteBufferMessageSet {
 
   private def create(offsetAssigner: OffsetAssigner,
@@ -77,6 +78,7 @@ object ByteBufferMessageSet {
     }
   }
 
+
   /** Deep iterator that decompresses the message sets and adjusts timestamp and offset if needed. */
   def deepIterator(wrapperMessageAndOffset: MessageAndOffset, ensureMatchingMagic: Boolean = false): Iterator[MessageAndOffset] = {
 
@@ -98,6 +100,7 @@ object ByteBufferMessageSet {
 
       val messageAndOffsets = {
         val inputStream = new ByteBufferBackedInputStream(wrapperMessage.payload)
+
         val compressed = try {
           new DataInputStream(CompressionFactory(wrapperMessage.compressionCodec, wrapperMessage.magic, inputStream))
         } catch {
@@ -299,16 +302,16 @@ class ByteBufferMessageSet(val buffer: ByteBuffer) extends MessageSet with Loggi
   /** Write the messages in this set to the given channel */
     //todo 将buffer中数据写到channel中
   def writeFullyTo(channel: GatheringByteChannel): Int = {
-      //标记一下position的位置
+      //todo 标记一下position的位置
     buffer.mark()
     var written = 0
-      //如果数据没写完，就一直写就可以了。
+      //todo 如果数据没写完，就一直写就可以了。
     while (written < sizeInBytes)
-      //通过调用FileChannel去写数据
-      //又是javaNIO里面的知识，多次强调，如果NIO知识不太会的同学
-      //一定要去补一下。
+      //todo 通过调用FileChannel去写数据
+      //todo 又是javaNIO里面的知识，多次强调，如果NIO知识不太会的同学
+      //todo 一定要去补一下。
       written += channel.write(buffer)
-      //恢复之前标记position的位置
+      //todo 恢复之前标记position的位置
     buffer.reset()
     written
   }
@@ -369,11 +372,13 @@ class ByteBufferMessageSet(val buffer: ByteBuffer) extends MessageSet with Loggi
         if(isShallow) {
           MessageAndOffset(newMessage, offset)
         } else {
+          //todo 处理日志格式
           newMessage.compressionCodec match {
             case NoCompressionCodec =>
               innerIter = null
               MessageAndOffset(newMessage, offset)
             case _ =>
+              //todo //如果这个Message采用了压缩，就对它进行深层迭代
               innerIter = ByteBufferMessageSet.deepIterator(MessageAndOffset(newMessage, offset), ensureMatchingMagic)
               if(!innerIter.hasNext)
                 innerIter = null

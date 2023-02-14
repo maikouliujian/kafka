@@ -78,14 +78,14 @@ class LogManager(val logDirs: Array[File],
    * </ol>
    */
   private def createAndValidateLogDirs(dirs: Seq[File]) {
-    //判断是否有重复的目录
+    //todo 判断是否有重复的目录
     if(dirs.map(_.getCanonicalPath).toSet.size < dirs.size)
       throw new KafkaException("Duplicate log directory found: " + logDirs.mkString(", "))
-    //遍历所有我们配置的目录
+    //todo 遍历所有我们配置的目录
     for(dir <- dirs) {
       if(!dir.exists) {
         info("Log directory '" + dir.getAbsolutePath + "' not found, creating it.")
-        //如果我们的代码是第一次进来，那么就需要创建好所有的目录。
+        //todo 如果我们的代码是第一次进来，那么就需要创建好所有的目录。
         val created = dir.mkdirs()
         if(!created)
           throw new KafkaException("Failed to create data directory " + dir.getAbsolutePath)
@@ -116,10 +116,10 @@ class LogManager(val logDirs: Array[File],
     val startMs = time.milliseconds
     val threadPools = mutable.ArrayBuffer.empty[ExecutorService]
     val jobs = mutable.Map.empty[File, Seq[Future[_]]]
-    //遍历所有的目录（配置的存储日志的目录）
+    //todo 遍历所有的目录（配置的存储日志的目录）
     for (dir <- this.logDirs) {
-      //为每个目录都创建一个线程池
-      //后面肯定是启动线程池里面的线程去加载Log
+      //todo 为每个目录都创建一个线程池
+      //todo 后面肯定是启动线程池里面的线程去加载Log
       val pool = Executors.newFixedThreadPool(ioThreads)
       threadPools.append(pool)
 
@@ -209,9 +209,9 @@ class LogManager(val logDirs: Array[File],
                          period = flushCheckMs, 
                          TimeUnit.MILLISECONDS)
       //todo 定时更新一个检查点的文件
-      //kafka服务有时候会涉及到重启。
-      //我重启应该要恢复哪些数据？
-      //其实这儿会定时更新一个检查点文件 -》服务于Kafka服务重启的时候恢复数据使用。
+      //todo kafka服务有时候会涉及到重启。
+      //todo 我重启应该要恢复哪些数据？
+      //todo 其实这儿会定时更新一个检查点文件 -》服务于Kafka服务重启的时候恢复数据使用。
       scheduler.schedule("kafka-recovery-point-checkpoint",
                          checkpointRecoveryPointOffsets,
                          delay = InitialTaskDelayMs,
@@ -478,10 +478,10 @@ class LogManager(val logDirs: Array[File],
         debug("Checking if flush is needed on " + topicAndPartition.topic + " flush interval  " + log.config.flushMs +
               " last flushed " + log.lastFlushTime + " time since last flush: " + timeSinceLastFlush)
         //todo 按照一定的频率刷写数据
-        //但是我们发现这个频率的阈值 这儿控制，kafka给的是一个long的最大值。
-        //也就是意味kafka这儿是不会主动的把内存里面的数据刷写到磁盘
-        //把内存里面的数据刷写到磁盘这个操作是由 操作系统完成的。
-        //当然也可以自己去配置这个值。
+        //todo 但是我们发现这个频率的阈值 这儿控制，kafka给的是一个long的最大值。
+        //todo 也就是意味kafka这儿是不会主动的把内存里面的数据刷写到磁盘
+        //todo 把内存里面的数据刷写到磁盘这个操作是由 操作系统完成的。
+        //todo 当然也可以自己去配置这个值。
         if(timeSinceLastFlush >= log.config.flushMs)
           log.flush
       } catch {

@@ -35,7 +35,7 @@ import org.apache.kafka.common.requests.ListOffsetRequest
 import scala.collection.{Seq, JavaConversions}
 import com.yammer.metrics.core.Gauge
 import org.apache.kafka.common.utils.Utils
-
+//todo kafka写日志到磁盘
 object LogAppendInfo {
   val UnknownLogAppendInfo = LogAppendInfo(-1, -1, Message.NoTimestamp, -1L, Message.NoTimestamp, NoCompressionCodec, NoCompressionCodec, -1, -1, offsetsMonotonic = false)
 }
@@ -346,6 +346,7 @@ class Log(val dir: File,
       return appendInfo
 
     // trim any invalid bytes or partial messages before appending it to the on-disk log
+    //todo 要存入磁盘的message
     var validMessages = trimInvalidBytes(messages, appendInfo)
 
     try {
@@ -495,11 +496,14 @@ class Log(val dir: File,
       validBytesCount += messageSize
 
       val messageCodec = m.compressionCodec
-      if(messageCodec != NoCompressionCodec)
+      if(messageCodec != NoCompressionCodec) {
+        //todo producer 压缩使用
         sourceCodec = messageCodec
+      }
     }
 
     // Apply broker-side compression if any
+    //todo broker压缩使用
     val targetCodec = BrokerCompressionCodec.getTargetCompressionCodec(config.compressionType, sourceCodec)
 
     LogAppendInfo(firstOffset, lastOffset, maxTimestamp, offsetOfMaxTimestamp, Message.NoTimestamp, sourceCodec, targetCodec, shallowMessageCount, validBytesCount, monotonic)

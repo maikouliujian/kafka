@@ -23,7 +23,7 @@ import java.util.zip.GZIPInputStream
 import java.io.InputStream
 
 import org.apache.kafka.common.record.{KafkaLZ4BlockInputStream, KafkaLZ4BlockOutputStream}
-
+//todo broker 压缩工厂
 object CompressionFactory {
   
   def apply(compressionCodec: CompressionCodec, messageVersion: Byte, stream: OutputStream): OutputStream = {

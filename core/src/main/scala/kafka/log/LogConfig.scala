@@ -119,6 +119,7 @@ object LogConfig {
   val CleanupPolicyProp = "cleanup.policy"
   val UncleanLeaderElectionEnableProp = "unclean.leader.election.enable"
   val MinInSyncReplicasProp = "min.insync.replicas"
+  //todo broker 压缩类型
   val CompressionTypeProp = "compression.type"
   val PreAllocateEnableProp = "preallocate"
   val MessageFormatVersionProp = "message.format.version"

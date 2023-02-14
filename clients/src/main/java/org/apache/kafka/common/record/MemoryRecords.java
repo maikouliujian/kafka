@@ -241,6 +241,7 @@ public class MemoryRecords implements Records {
 
         // Private constructor for inner iterator.
         private RecordsIterator(LogEntry entry) {
+            //todo 从日志中获取压缩类型
             this.type = entry.record().compressionType();
             this.buffer = entry.record().value();
             this.shallow = true;
@@ -303,6 +304,7 @@ public class MemoryRecords implements Records {
                     }
 
                     // decide whether to go shallow or deep iteration if it is compressed
+                    //todo 从日志中获取压缩类型
                     CompressionType compression = entry.record().compressionType();
                     if (compression == CompressionType.NONE || shallow) {
                         return entry;

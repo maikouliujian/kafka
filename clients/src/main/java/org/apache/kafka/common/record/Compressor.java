@@ -80,7 +80,7 @@ public class Compressor {
                 .getConstructor(InputStream.class, Boolean.TYPE);
         }
     });
-
+    //todo 压缩类型
     private final CompressionType type;
     private final DataOutputStream appendStream;
     private final ByteBufferOutputStream bufferStream;
@@ -241,7 +241,7 @@ public class Compressor {
     }
 
     // the following two functions also need to be public since they are used in MemoryRecords.iteration
-
+    //todo 压缩处理（for producer）
     public static DataOutputStream wrapForOutput(ByteBufferOutputStream buffer, CompressionType type, int bufferSize) {
         try {
             switch (type) {
@@ -270,7 +270,7 @@ public class Compressor {
             throw new KafkaException(e);
         }
     }
-
+    //todo 压缩处理（for consumer）
     public static DataInputStream wrapForInput(ByteBufferInputStream buffer, CompressionType type, byte messageVersion) {
         try {
             switch (type) {
